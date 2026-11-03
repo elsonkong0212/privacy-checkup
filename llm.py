@@ -1,6 +1,7 @@
 """AI 後端。
 
 auto  ：預設值。依序找 Claude Code CLI、Codex CLI、Gemini API 金鑰，用第一個找到的；都沒有就不用 AI
+        CLI 要裝了而且登入了才算數；第一次呼叫就失敗（例如方案不含、額度用完）會自動換下一個
 claude：Claude Code CLI（沿用你的 Claude 訂閱，不需要另外申請 API key）
 codex ：OpenAI Codex CLI（沿用你的 ChatGPT 訂閱，先執行一次 codex login）
 gemini：Google Gemini API（到 Google AI Studio 申請免費的 API 金鑰，由程式直接呼叫）
@@ -38,52 +39,80 @@ _binary = None
 _model = None
 _api_key = None
 _codex_disabled = []
+_candidates = []   # auto 模式：還沒試過、可以換過去的 AI（依優先順序）
+_verified = False  # 目前的 AI 在這次執行裡成功回答過了嗎？成功過就固定用它，不再換
 
 
 def detect():
-    """--llm auto：這台電腦上有哪一種 AI 可以用？依序找 Claude Code CLI、Codex CLI、Gemini API 金鑰。"""
-    if find_claude():
-        return "claude"
-    if find_codex():
-        return "codex"
+    """--llm auto：這台電腦上有哪幾種 AI 可以用？依序是 Claude Code CLI、Codex CLI、Gemini API 金鑰。
+    CLI 要裝了而且登入了才算；查不出有沒有登入（例如舊版沒有這個指令）就先算可以用，真的呼叫失敗再換下一個。"""
+    found = []
+    for backend, find, logged_in, hint in [
+        ("claude", find_claude, _claude_logged_in, "在 VS Code 的 Claude Code 面板登入，或在終端機執行 claude 後輸入 /login"),
+        ("codex", find_codex, _codex_logged_in, "在 VS Code 的 Codex 面板登入，或在終端機執行 codex login"),
+    ]:
+        binary = find()
+        if not binary:
+            continue
+        if logged_in(binary) is False:
+            print(f"[注意] 找到 {NAMES[backend]}，但還沒登入，先略過。要用的話請{hint}。")
+            continue
+        found.append(backend)
     if gemini_api_key():
-        return "gemini"
-    return "none"
+        found.append("gemini")
+    return found
 
 
 def configure(backend, model=None):
-    global _backend, _auto, _binary, _model, _api_key, _codex_disabled
-    _auto = backend == "auto"
-    if _auto:
-        backend = detect()
-    _backend, _model = backend, model
+    global _backend, _auto, _model, _candidates, _verified
+    _auto, _model, _verified, _backend = backend == "auto", model, False, "none"
+    _candidates = detect() if _auto else ([] if backend == "none" else [backend])
+    _switch()
+
+
+def _switch():
+    """改用清單裡下一個準備得好的 AI，成功回傳 True。清單用完就回傳 False，目前用的 AI 不變。"""
+    while _candidates:
+        if _activate(_candidates.pop(0)):
+            return True
+    return False
+
+
+def _activate(backend):
+    """準備好指定的 AI，成功回傳 True；失敗時印出原因，目前用的 AI 不變。"""
+    global _backend, _binary, _model, _api_key, _codex_disabled
     if backend == "claude":
-        _binary = find_claude()
-        if not _binary:
-            _offline("找不到 Claude Code CLI", "可以設定環境變數 CLAUDE_BIN 指向 claude 執行檔。")
+        binary = find_claude()
+        if not binary:
+            return _unavailable("找不到 Claude Code CLI", "可以設定環境變數 CLAUDE_BIN 指向 claude 執行檔。")
+        _binary = binary
     elif backend == "codex":
-        _binary = find_codex()
-        if not _binary:
-            _offline("找不到 Codex CLI", "安裝方式：npm install -g @openai/codex，再執行 codex login。")
-        else:
-            _codex_disabled = _codex_features_to_disable()
+        binary = find_codex()
+        if not binary:
+            return _unavailable("找不到 Codex CLI", "安裝方式：npm install -g @openai/codex，再執行 codex login。")
+        _binary = binary
+        _codex_disabled = _codex_features_to_disable()
     elif backend == "gemini":
-        _api_key = gemini_api_key()
-        if not _api_key:
-            _offline("找不到 Gemini API 金鑰", "到 https://aistudio.google.com/apikey 免費申請，"
-                     "存成 secrets/gemini_api_key.txt，或設定環境變數 GEMINI_API_KEY。")
-            return
+        key = gemini_api_key()
+        if not key:
+            return _unavailable("找不到 Gemini API 金鑰", "到 https://aistudio.google.com/apikey 免費申請，"
+                                "存成 secrets/gemini_api_key.txt，或設定環境變數 GEMINI_API_KEY。")
+        _api_key = key
         try:
-            _model = model or _gemini_pick_model()
+            model = _model or _gemini_pick_model()
         except Exception as error:
-            _offline(f"連不上 Gemini API（{error}）", "請檢查網路和 API 金鑰。")
+            return _unavailable(f"連不上 Gemini API（{error}）", "請檢查網路和 API 金鑰。")
+        _model = model
+    else:
+        return False
+    _backend = backend
+    return True
 
 
-def _offline(problem, hint):
-    global _backend
-    print(f"[注意] {problem}，改用離線模式（不使用 AI）。")
+def _unavailable(problem, hint):
+    print(f"[注意] {problem}，{'略過' if _auto else '改用離線模式（不使用 AI）'}。")
     print(f"       {hint}")
-    _backend = "none"
+    return False
 
 
 def available():
@@ -99,7 +128,7 @@ def agent_ready():
 
 def describe():
     if _backend == "none":
-        return ("未使用（這台電腦找不到 Claude Code、Codex 或 Gemini 金鑰，全部用規則判斷）" if _auto
+        return ("未使用（這台電腦找不到已登入的 Claude Code、Codex，也沒有 Gemini 金鑰，全部用規則判斷）" if _auto
                 else "未使用（離線模式，全部用規則判斷）")
     return (NAMES[_backend] + (f"（模型：{_model}）" if _model else "")
             + ("（自動偵測；要換可以加 --llm）" if _auto else ""))
@@ -107,6 +136,32 @@ def describe():
 
 def complete(system_prompt, prompt):
     """一般問答：AI 沒有任何工具。"""
+    return _with_fallback(lambda: _complete(system_prompt, prompt))
+
+
+def investigate(system_prompt, prompt, data_dir, run_id):
+    """調查模式：AI 只能用 agent_tools.py 的工具。回傳 AI 最後的回答。"""
+    return _with_fallback(lambda: _investigate(system_prompt, prompt, data_dir, run_id))
+
+
+def _with_fallback(ask):
+    """auto 模式下，目前的 AI 第一次呼叫就失敗（例如方案不含、額度用完），換下一個找得到的 AI 再問一次。
+    成功過一次之後就固定用它：之後的失敗照常交給呼叫的人處理（改用規則判斷），不會中途換 AI。"""
+    global _verified
+    while True:
+        try:
+            reply = ask()
+        except Exception as error:
+            failed = NAMES.get(_backend, _backend)
+            if not _auto or _verified or not _switch():
+                raise
+            print(f"  [注意] {failed} 呼叫失敗（{str(error)[:150]}），改用 {NAMES[_backend]} 再試一次")
+            continue
+        _verified = True
+        return reply
+
+
+def _complete(system_prompt, prompt):
     if _backend == "claude":
         return _claude(system_prompt, prompt)
     if _backend == "codex":
@@ -114,8 +169,7 @@ def complete(system_prompt, prompt):
     return _gemini_complete(system_prompt, prompt)
 
 
-def investigate(system_prompt, prompt, data_dir, run_id):
-    """調查模式：AI 只能用 agent_tools.py 的工具。回傳 AI 最後的回答。"""
+def _investigate(system_prompt, prompt, data_dir, run_id):
     if _backend == "gemini":
         import agent_tools  # 放在這裡，避免 guard → llm → agent_tools → guard 互相引用
         return _gemini_investigate(system_prompt, prompt, agent_tools.ToolBox(data_dir, run_id, "evidence.json"))
@@ -143,6 +197,15 @@ def find_claude():
     pattern = str(Path.home() / ".vscode" / "extensions" / "anthropic.claude-code-*" / "resources" / "native-binary" / name)
     candidates = sorted(glob.glob(pattern), key=os.path.getmtime)
     return candidates[-1] if candidates else None
+
+
+def _claude_logged_in(binary):
+    """claude auth status 會回一段 JSON，裡面有 loggedIn。回傳 True / False；查不出來（例如舊版）回傳 None。"""
+    try:
+        result = _run([binary, "auth", "status"], "", None, 30)
+        return bool(json.loads(result.stdout)["loggedIn"])
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError):
+        return None
 
 
 def _claude(system_prompt, prompt, server=None):
@@ -207,6 +270,19 @@ def find_codex():
     candidates = sorted(glob.glob(str(Path.home() / ".vscode" / "extensions" / "openai.chatgpt-*" / "bin" / "*" / name)),
                         key=os.path.getmtime)
     return candidates[-1] if candidates else None
+
+
+def _codex_logged_in(binary):
+    """codex login status：登入了回傳 0。回傳 True / False；查不出來回傳 None。"""
+    if os.environ.get("CODEX_API_KEY"):
+        return True  # 用 API 金鑰的話 codex exec 可以直接用，但 login status 會說沒登入
+    try:
+        result = _run([binary, "login", "status"], "", None, 30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode == 0:
+        return True
+    return False if "not logged in" in (result.stdout + result.stderr).lower() else None
 
 
 def _codex_features_to_disable():

@@ -363,6 +363,69 @@ def t_codex_violations():
     return ok, "Codex 執行指令會被抓到；只用我們的工具不會誤判" if ok else f"結果不對：{caught}、{clean}、{tools_off}"
 
 
+def t_auto_pick():
+    """模擬幾種電腦：只裝了一種、裝了但沒登入、登入了但呼叫失敗，auto 都要選到能用的那一個。"""
+    import io
+    import llm
+    patched = ["find_claude", "find_codex", "gemini_api_key", "_claude_logged_in", "_codex_logged_in",
+               "_codex_features_to_disable", "_claude", "_codex"]
+    state = ["_backend", "_auto", "_binary", "_model", "_api_key", "_codex_disabled", "_candidates", "_verified"]
+    saved = {name: getattr(llm, name) for name in patched + state}  # main.py 已經選好 AI 了，測完要還原
+
+    def computer(claude=None, codex=None, fail=()):
+        """claude / codex：None 沒裝、"out" 裝了沒登入、"in" 登入了。fail：呼叫會失敗的 AI。"""
+        llm.find_claude = lambda: "claude" if claude else None
+        llm.find_codex = lambda: "codex" if codex else None
+        llm.gemini_api_key = lambda: None
+        llm._claude_logged_in = lambda binary: claude == "in"
+        llm._codex_logged_in = lambda binary: codex == "in"
+        llm._codex_features_to_disable = lambda: []
+
+        def answer(name):
+            def call(system_prompt, prompt, server=None):
+                if name in fail:
+                    raise RuntimeError("額度用完")
+                return name
+            return call
+        llm._claude, llm._codex = answer("claude"), answer("codex")
+        llm.configure("auto")
+        if not llm.available():
+            return "none", None
+        try:
+            reply = llm.complete("system", "prompt")
+        except RuntimeError:
+            reply = None
+        return llm._backend, reply  # 呼叫完再看用的是哪一個（中途可能換過）
+
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            cases = {
+                "只裝 Claude": (computer(claude="in"), ("claude", "claude")),
+                "只裝 Codex": (computer(codex="in"), ("codex", "codex")),
+                "Claude 沒登入 → Codex": (computer(claude="out", codex="in"), ("codex", "codex")),
+                "Claude 呼叫失敗 → Codex": (computer(claude="in", codex="in", fail={"claude"}), ("codex", "codex")),
+                "都沒登入 → 不用 AI": (computer(claude="out", codex="out"), ("none", None)),
+            }
+            # 成功過一次之後就固定用它：之後失敗不會換 AI，交給呼叫的人改用規則判斷
+            computer(claude="in", codex="in")
+
+            def timeout(*args, **kwargs):
+                raise RuntimeError("逾時")
+            llm._claude = timeout
+            try:
+                llm.complete("system", "prompt")
+                stays = False
+            except RuntimeError:
+                stays = llm._backend == "claude"
+    finally:
+        for name, value in saved.items():
+            setattr(llm, name, value)
+    wrong = [name for name, (got, expected) in cases.items() if got != expected]
+    ok = not wrong and stays
+    return ok, ("裝了沒登入、呼叫失敗都會自動換下一個；成功過之後就固定用同一個" if ok
+                else f"結果不對：{wrong or '成功過之後還是換了 AI'}")
+
+
 TESTS = [
     ("網址整理", t_domains),
     ("白名單", t_whitelist),
@@ -393,6 +456,7 @@ TESTS = [
     ("AI 調查：依據檢查", t_citation_check),
     ("Gemini 工具迴圈（模擬）", t_gemini_loop),
     ("Codex 違規偵測", t_codex_violations),
+    ("自動選擇 AI（模擬）", t_auto_pick),
 ]
 
 

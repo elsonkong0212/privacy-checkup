@@ -26,7 +26,7 @@ python main.py --demo --llm codex          # 指定用 Codex（也可以用 --ll
 ```
 
 開頭會印出這次用的是哪一種 AI。報告會寫在 `output/report_demo.md`。
-每次執行都會先跑 29 個自我測試，全部通過才開始健檢，所以測試通過就代表你的電腦可以用。
+每次執行都會先跑 30 個自我測試，全部通過才開始健檢，所以測試通過就代表你的電腦可以用。
 
 > macOS / Linux 的指令是 `python3`；Windows 打 `python` 沒反應的話改用 `py`。
 
@@ -164,13 +164,14 @@ python main.py --demo --gmail secrets/gmail_candidates_demo.csv
 
 | 選項 | 用的是 | 需要準備 |
 |---|---|---|
-| `auto`（預設） | 自動找，依序是 Claude Code → Codex → Gemini 金鑰，用第一個找到的；都沒有就不用 AI | 不用設定 |
+| `auto`（預設） | 自動找，依序是 Claude Code → Codex → Gemini 金鑰，用第一個**裝好而且登入了**的；都沒有就不用 AI | 不用設定 |
 | `claude` | Claude Code CLI | Claude 訂閱。程式會自動找 `claude` 指令或 VS Code 擴充套件內附的執行檔；找不到時設定環境變數 `CLAUDE_BIN` |
 | `codex` | OpenAI Codex CLI | ChatGPT 帳號（方案是否包含 Codex 以 OpenAI 公告為準）。安裝：`npm install -g @openai/codex`，再執行一次 `codex login`；也可以用 VS Code 的 Codex 擴充套件內附的執行檔；找不到時設定環境變數 `CODEX_BIN` |
 | `gemini` | Google Gemini API | 免費的 API 金鑰（見下方） |
 | `none` | 不使用 AI | 不用準備 |
 
-- 自動偵測只看「有沒有裝」，不看「有沒有登入」。選到的 AI 沒登入時，每一步都會印出「AI 呼叫失敗，改用規則判斷」，報告照樣產生；這時先登入，或用 `--llm` 指定另一個
+- 自動偵測會跳過裝了但還沒登入的 AI，並印出怎麼登入；第一次呼叫就失敗（例如方案不含 Codex、額度用完）也會自動換下一個再試。成功過一次之後就固定用它，不會中途換
+- 用 `--llm` 指定的話就只用那一個，不會自動換；它沒登入時，每一步都會印出「AI 呼叫失敗，改用規則判斷」，報告照樣產生
 - 同時有好幾種的話，想用哪一個就用 `--llm` 指定
 - `--model` 可以指定模型，例如 `--llm claude --model sonnet`
 
