@@ -1,0 +1,7 @@
+domain,still_using,note,likely_account,emails,first_seen,last_seen,hints,sender_name,platform_note
+shopee.tw,y,,高,132,2019-03-02,2026-10-30,安全通知、註冊、訂單、電子報,Shopee 蝦皮購物,
+adobe.com,y,,高,41,2011-08-15,2026-09-01,安全通知、註冊、電子報,Adobe,
+canva.com,n,,高,6,2021-05-01,2021-06-10,註冊、電子報,Canva,
+oldgame.example,n,,高,14,2014-07-11,2016-02-03,註冊、電子報,OldGame Online,
+quickgift.example,n,,中,3,2025-12-20,2025-12-22,訂單,快送禮物,
+technews.example,,,低,58,2022-01-05,2026-10-29,電子報,科技新聞電子報,

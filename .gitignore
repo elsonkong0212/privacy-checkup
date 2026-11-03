@@ -1,0 +1,16 @@
+# 個人資料：絕對不要上傳
+secrets/
+data/
+output/
+audit.log
+
+# 防呆：就算放錯資料夾，這些檔名也不會被上傳（demo/fake_passwords.csv 裡是假密碼，不受影響）
+passwords.csv
+*_passwords.csv
+!demo/fake_passwords.csv
+gmail_credentials*.json
+gmail_token*.json
+gemini_api_key*.txt
+.env
+
+__pycache__/

@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "privacy-checkup": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["${workspaceFolder}/mcp_server.py"]
+    }
+  }
+}
