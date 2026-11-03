@@ -26,7 +26,7 @@ python main.py --demo --llm codex          # 指定用 Codex（也可以用 --ll
 ```
 
 開頭會印出這次用的是哪一種 AI。報告會寫在 `output/report_demo.md`。
-每次執行都會先跑 30 個自我測試，全部通過才開始健檢，所以測試通過就代表你的電腦可以用。
+每次執行都會先跑 31 個自我測試，全部通過才開始健檢，所以測試通過就代表你的電腦可以用。
 
 > macOS / Linux 的指令是 `python3`；Windows 打 `python` 沒反應的話改用 `py`。
 
@@ -87,6 +87,7 @@ python main.py
   - 翻好的結果存在 `data/cache/shop_domains.json`，之後只翻新增的店名
   - 仿冒網域偵測：程式先在本機找出名稱很像這些官方網域的帳號網站，**只有這些可疑的網址**才交給 AI 判斷是官方分站還是仿冒。
     AI 判斷是仿冒的列為 🔴；AI 判斷不是仿冒的不列燈號，但會列在報告的「AI 判斷不是仿冒的網站（請你確認）」，因為 AI 也可能判斷錯
+    AI 的判斷存在 `data/cache/lookalike_verdicts.json`，同一個網站之後直接沿用，每次的報告才會一樣；想重新判斷就刪掉這個檔案
   - 店名要先翻成網域才能比對仿冒網域，所以完全不用 AI（`--llm none`）時，仿冒網域偵測會找不到東西
   - 想補充店名：複製 `templates/165_shops.csv` 到 `secrets/165_shops.csv`，在最後面加一行（只填 `shop_name` 也可以）
   - 離線時加 `--no-165-fetch`，只用手動清單（把 `templates/165_shops.csv` 複製過去就能離線比對）

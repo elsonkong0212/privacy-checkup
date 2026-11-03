@@ -323,26 +323,45 @@ domain（使用者帳號的網址）、official_domain（這家店的官方網�
 
 
 def accept_lookalikes(reply, by_id):
-    """逐筆檢查 AI 的判斷。回傳 {id: {verdict, reason}}。"""
+    """逐筆檢查 AI 的判斷。回傳 {id: {verdict, reason}}。
+    結論只能是固定的幾個選項，所以理由沒通過檢查（太長、提到其他網站）時只拿掉理由（reason 變成 None），結論照樣採用。"""
     results = {}
     for item in reply or []:
         if not isinstance(item, dict) or item.get("id") not in by_id or item.get("verdict") not in LOOKALIKE_VERDICTS:
             continue
         candidate = by_id[item["id"]]
         allowed = {normalize_domain(candidate["domain"]), candidate["official_domain"]}
-        if _short_ok(item.get("reason"), allowed, 40):
-            results[item["id"]] = {"verdict": item["verdict"], "reason": item["reason"].strip()}
+        reason = item["reason"].strip() if _short_ok(item.get("reason"), allowed, 40) else None
+        results[item["id"]] = {"verdict": item["verdict"], "reason": reason}
     return results
 
 
-def check_lookalikes(candidates):
-    """candidates 來自 stages/lookalike.py。回傳 {L 編號: AI 的判斷}；AI 不能用時回傳空的。"""
+def _lookalike_key(candidate):
+    return f"{candidate['host']} → {candidate['official_domain']}"
+
+
+def check_lookalikes(candidates, cache_path):
+    """candidates 來自 stages/lookalike.py。回傳 {L 編號: AI 的判斷}；AI 不能用時回傳空的。
+    判斷結果存在 cache_path，同一個網站下次直接沿用、不再問 AI，每次的報告才會一樣（刪掉這個檔案就會重新判斷）。"""
     if not candidates:
         return {}
-    items = [{"id": c["id"], "domain": c["host"], "official_domain": c["official_domain"], "shop_name": c["shop_name"]}
-             for c in candidates]
-    reply = _ask("仿冒網域判斷", LOOKALIKE_INSTRUCTIONS, {"lookalikes": items}, list)
-    return accept_lookalikes(reply, {item["id"]: item for item in items})
+    saved = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+    cache = {k: v for k, v in saved.items() if isinstance(v, dict) and v.get("verdict") in LOOKALIKE_VERDICTS}
+    todo = [c for c in candidates if _lookalike_key(c) not in cache]
+    if len(todo) < len(candidates):
+        print(f"  沿用之前的 AI 仿冒網域判斷：{len(candidates) - len(todo)} 個（想重新判斷就刪掉 {cache_path.name}）")
+    if todo:
+        items = [{"id": c["id"], "domain": c["host"], "official_domain": c["official_domain"], "shop_name": c["shop_name"]}
+                 for c in todo]
+        reply = _ask("仿冒網域判斷", LOOKALIKE_INSTRUCTIONS, {"lookalikes": items}, list)
+        accepted = accept_lookalikes(reply, {item["id"]: item for item in items})
+        by_id = {c["id"]: c for c in todo}
+        for candidate_id, verdict in accepted.items():
+            cache[_lookalike_key(by_id[candidate_id])] = verdict
+        if accepted:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {c["id"]: cache[_lookalike_key(c)] for c in candidates if _lookalike_key(c) in cache}
 
 
 # ---------- AI-2：排優先順序、寫白話說明 ----------

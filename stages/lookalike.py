@@ -8,6 +8,7 @@
    - 只差一兩個字：shoppee.tw
    - 名稱一樣但尾碼不同：shopee.com.co
 2. 只有這些可疑的網站才交給 AI 判斷：同一家公司的官方分站、仿冒的假網站，還是剛好名字很像（ai_steps.check_lookalikes）
+   判斷結果存在 data/cache/lookalike_verdicts.json，同一個網站之後直接沿用，每次的報告才會一樣
 3. AI 判斷是仿冒的列為 🔴；沒有 AI 或 AI 沒把握的列為 🟡，請你自己確認
 4. AI 判斷是官方分站或不相關的不列入燈號，但報告會另外列出來給你確認：AI 也可能判斷錯，網址又是騙子自己取的，
    不能讓 AI 悄悄把警告拿掉
@@ -87,16 +88,18 @@ def build_items(candidates, verdicts):
     for c in candidates:
         verdict = verdicts.get(c["id"])
         kind = verdict["verdict"] if verdict else None
+        reason = (verdict.get("reason") or "").rstrip("。") if verdict else ""  # 理由沒通過檢查時是空的，結論照樣用
         if kind in ("official", "unrelated"):
             cleared.append({"domain": c["domain"], "host": c["host"], "official_domain": c["official_domain"],
-                            "shop_name": c["shop_name"], "verdict": kind, "reason": verdict["reason"]})
+                            "shop_name": c["shop_name"], "verdict": kind,
+                            "reason": reason or "（AI 的理由沒通過檢查，已省略）"})
             continue
         what = (f"{c['host']} 的名稱很像 165 公布的店家「{c['shop_name']}」的官方網站 {c['official_domain']}"
                 f"（{c['why']}），但不是同一個網域。")
         if kind == "imitation":
-            judged = f"AI 判斷很可能是仿冒的假網站：{verdict['reason'].rstrip('。')}。"
+            judged = "AI 判斷很可能是仿冒的假網站" + (f"：{reason}。" if reason else "。")
         elif kind == "unsure":
-            judged = f"AI 也沒有把握：{verdict['reason'].rstrip('。')}。"
+            judged = "AI 也沒有把握" + (f"：{reason}。" if reason else "。")
         else:
             judged = "如果你是點廣告或簡訊連結進去的，可能是仿冒網站。"
         items.append({

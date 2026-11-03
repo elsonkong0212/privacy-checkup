@@ -196,6 +196,41 @@ def t_lookalike_levels():
                 if ok else f"結果不對：{levels}、{cleared}")
 
 
+def t_lookalike_stable():
+    """理由太長或提到別的網站時，只拿掉理由、結論照用；判斷過的網站存起來，下次不再問 AI，報告才不會每次不一樣。"""
+    import io
+    from stages import ai_steps
+    from stages.lookalike import build_items
+    candidates = [{"id": f"L{i}", "domain": d, "host": d, "official_domain": "shopee.tw", "shop_name": "蝦皮購物",
+                   "why": "網址裡有「shopee」"} for i, d in enumerate(("a.example", "b.example", "c.example"), 1)]
+    asked = []
+
+    def fake_ask(task, instructions, data, expected_type):
+        asked.append(sorted(item["domain"] for item in data["lookalikes"]))
+        return [{"id": "L1", "verdict": "imitation", "reason": "很像" * 25},          # 50 字，太長
+                {"id": "L2", "verdict": "official", "reason": "其實是 evil.example 的分站"},  # 提到別的網站
+                {"id": "L3", "verdict": "unsure", "reason": "沒把握"}]
+
+    original = ai_steps._ask
+    ai_steps._ask = fake_ask
+    try:
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            cache = Path(folder) / "lookalike_verdicts.json"
+            first = ai_steps.check_lookalikes(candidates[:2], cache)
+            second = ai_steps.check_lookalikes(candidates, cache)  # L1、L2 沿用，只問新的 L3
+            third = ai_steps.check_lookalikes(candidates, cache)   # 全部沿用，不問 AI
+    finally:
+        ai_steps._ask = original
+    items, cleared = build_items(candidates, third)
+    levels = {i["domain"]: i["default_level"] for i in items}
+    ok = (first["L1"] == {"verdict": "imitation", "reason": None} and first["L2"]["reason"] is None
+          and second == third and levels == {"a.example": "red", "c.example": "yellow"}
+          and [c["domain"] for c in cleared] == ["b.example"] and "evil.example" not in json.dumps(cleared)
+          and asked == [["a.example", "b.example"], ["c.example"]])
+    return ok, ("理由沒通過檢查只拿掉理由，結論照用（仍是 🔴）；判斷過的網站下次直接沿用，只問新的" if ok
+                else f"結果不對：{first}、{third}、{levels}、問了 AI：{asked}")
+
+
 def t_sender_names():
     from stages.ai_steps import safe_sender_name
     cases = {"陳老師": "", "王小明 via LinkedIn": "LinkedIn", "蝦皮購物": "蝦皮購物", "數位時代": "數位時代",
@@ -446,6 +481,7 @@ TESTS = [
     ("165 比對在本機", t_165_local_match),
     ("仿冒網域：抓得到、不誤報", t_lookalike_candidates),
     ("仿冒網域：燈號", t_lookalike_levels),
+    ("仿冒網域：結果穩定", t_lookalike_stable),
     ("寄件者名稱整理", t_sender_names),
     ("Gmail 自動判斷", t_gmail_triage),
     ("保留你填的答案", t_keep_user_answers),

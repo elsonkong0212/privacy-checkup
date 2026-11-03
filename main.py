@@ -174,7 +174,8 @@ def main():
     # 仿冒網域：本機先抓「名稱很像官方網域」的帳號網站，只有這些可疑的才交給 AI 判斷
     translations = json.loads(path.read_text(encoding="utf-8")) if (path := CACHE / "shop_domains.json").exists() else {}
     candidates = lookalike.find_candidates(accounts, pw_summary, translations)
-    lookalike_items, cleared = lookalike.build_items(candidates, ai_steps.check_lookalikes(candidates))
+    lookalike_items, cleared = lookalike.build_items(
+        candidates, ai_steps.check_lookalikes(candidates, CACHE / "lookalike_verdicts.json"))
     print(f"  仿冒網域偵測：疑似 {len(candidates)} 個"
           + (f"，AI 判斷其中 {len(cleared)} 個是官方分站或不相關（報告會列出來給你確認）" if cleared else "")
           + (f"，列入報告 {len(lookalike_items)} 個" if lookalike_items else ""))
