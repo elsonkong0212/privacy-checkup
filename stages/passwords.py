@@ -106,16 +106,37 @@ def find_exports(folders, newer_than=0.0):
     return found
 
 
-def wait_for_export(folders, since, timeout=600, interval=0.25):
-    """等你匯出密碼：回傳 since 之後出現、而且已經寫完（連續兩次檢查大小都沒變）的密碼檔；逾時回傳 None。"""
+def _stamp(path):
+    stat = path.stat()
+    return stat.st_mtime_ns, stat.st_size
+
+
+def snapshot(folders):
+    """開始等之前，這些資料夾裡已經有哪些密碼檔（和它們的修改時間、大小）。"""
+    stamps = {}
+    for path in find_exports(folders):
+        try:
+            stamps[path] = _stamp(path)
+        except OSError:
+            continue
+    return stamps
+
+
+def wait_for_export(folders, before, timeout=600, interval=0.25):
+    """等你匯出密碼：回傳 before（snapshot 的結果）裡沒有、或內容變了的密碼檔，而且要已經寫完
+    （連續兩次檢查大小都沒變）；逾時回傳 None。
+    不用「修改時間」判斷新舊：在檔案總管複製貼上或搬移的檔案會保留原本的修改時間，會被誤認成舊檔。"""
     sizes = {}
     deadline = time.time() + timeout
     while time.time() < deadline:
-        for path in find_exports(folders, since - 1):  # 留 1 秒誤差，有些檔案系統的時間只記到秒
+        for path in find_exports(folders):
             try:
-                size = path.stat().st_size
+                stamp = _stamp(path)
             except OSError:
                 continue
+            if before.get(path) == stamp:
+                continue  # 開始等之前就在了，而且沒有變
+            size = stamp[1]
             if size and sizes.get(path) == size:
                 return path
             sizes[path] = size

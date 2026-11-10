@@ -136,24 +136,26 @@ def read_passwords(args):
             print("  已刪除（先蓋掉內容再刪，不經過資源回收筒）。")
         return loaded
 
-    since = time.time()  # 從這裡開始算：之後出現的密碼檔才是這次匯出的
+    before = passwords.snapshot(folders)  # 現在已經在的密碼檔不算；之後出現的（匯出、複製貼上、搬過來都算）才是這次的
     print("  沒有密碼檔。要檢查密碼的話，現在匯出就好，程式會等：檔案一出現就讀取並立刻刪除，只會在硬碟上留幾秒鐘。")
     print(EXPORT_HELP)
-    print(f"  存到「下載」資料夾、桌面或 {args.passwords.parent} 都可以，檔名不用改。")
+    print("  存到下面任一個資料夾都可以（直接匯出、或從別的地方複製貼上過來都行），檔名不用改：")
+    for folder in folders:
+        print(f"    {folder}")
     if not ask_yes("  要現在匯出密碼來檢查嗎？（選 n 就略過密碼檢查，其他項目照常）", default=False):
         return None
     print("  等待匯出中…（最多等 10 分鐘，按 Ctrl+C 取消）")
     try:
-        path = passwords.wait_for_export(folders, since)
+        path = passwords.wait_for_export(folders, before)
     except KeyboardInterrupt:
         sys.exit("\n已取消。")
     if not path:
         print("  等了 10 分鐘都沒有看到密碼檔，這次先略過密碼檢查。")
         return None
-    written = path.stat().st_mtime
+    found_at = time.time()
     loaded = passwords.read_entries(path)
     if remove_plaintext(path):
-        print(f"  讀取 {path.name} 後已刪除：從匯出完成到刪除只經過 {time.time() - written:.1f} 秒")
+        print(f"  讀取 {path.name} 後已刪除：從發現檔案到刪除只經過 {time.time() - found_at:.1f} 秒")
     return loaded
 
 

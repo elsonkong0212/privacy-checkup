@@ -147,12 +147,16 @@ def t_wait_and_destroy():
         old = folder / "舊的.csv"
         old.write_text(CHROME_HEADER + "a,https://a.example,me,old-password,\n", encoding="utf-8")
         os.utime(old, (1_600_000_000, 1_600_000_000))
-        since = time.time()
+        before = passwords.snapshot([folder])
         new = folder / "Chrome 密碼.csv"
-        writer = threading.Timer(0.3, lambda: new.write_text(
-            CHROME_HEADER + "a,https://a.example,me,password123,\nb,https://b.example,me,password123,\n", encoding="utf-8"))
+
+        def paste():  # 像在檔案總管複製貼上：檔案是新出現的，但修改時間還是原本的（2020 年）
+            new.write_text(CHROME_HEADER + "a,https://a.example,me,password123,\nb,https://b.example,me,password123,\n",
+                           encoding="utf-8")
+            os.utime(new, (1_600_000_000, 1_600_000_000))
+        writer = threading.Timer(0.3, paste)
         writer.start()
-        found = passwords.wait_for_export([folder], since, timeout=10, interval=0.1)
+        found = passwords.wait_for_export([folder], before, timeout=10, interval=0.1)
         writer.join()
         entries, secret_hashes, _ = passwords.read_entries(found) if found else ([], {}, 0)
         if found:
@@ -160,7 +164,7 @@ def t_wait_and_destroy():
         gone = found is not None and not found.exists() and old.exists()
     plaintext_left = any("password123" in str(field) for entry in entries for field in entry)
     ok = found == new and gone and len(entries) == 2 and not plaintext_left and len(secret_hashes) == 1
-    return ok, ("等到匯出才讀、讀完就刪；記憶體裡只剩雜湊值；舊檔案不會被誤認成這次的" if ok
+    return ok, ("等到檔案出現才讀（複製貼上、修改時間是舊的也認得）、讀完就刪；記憶體裡只剩雜湊值；原本就在的舊檔不會被誤認" if ok
                 else f"結果不對：找到 {found}、刪掉了 {gone}、留下明文 {plaintext_left}")
 
 
