@@ -8,14 +8,17 @@ AI 可以自己決定查什麼，但每個結論都要附上依據（工具呼�
 import json
 import time
 
-import agent_tools
 import guard
 from common import normalize_domain
+from experimental import agent_llm, agent_tools
 from stages import findings
 from stages.ai_steps import SYSTEM_PROMPT, _parse_json, _text_ok
+from stages.report import _cell
 
 MAX_CLAIMS = 20
 MAX_NOTES_PER_ITEM = 2
+TOOL_ZH = {"list_accounts": "列出帳號", "list_findings": "列出健檢結果", "check_password": "查密碼狀況",
+           "search_breaches": "搜尋外洩事件", "search_165": "搜尋 165 名單", "get_remedies": "查補救方法"}
 
 INSTRUCTIONS = f"""\
 你是個人資安健檢的調查員。程式已經做完基本檢查（evidence），你可以用工具做進一步的調查。
@@ -210,8 +213,9 @@ def run(evidence, accounts, data_dir):
     domains = sorted({a["domain"] for a in accounts})
     reply = None
     try:
-        reply = guard.ask_agent("AI 調查", SYSTEM_PROMPT, INSTRUCTIONS, {"domains": domains, "evidence": evidence},
-                                data_dir, run_id)
+        # 和其他工作走同一個入口：一樣過白名單、敏感資料偵測、留紀錄，只是把「交給 AI」換成可以用唯讀工具的版本
+        reply = guard.ask_llm("investigate", SYSTEM_PROMPT, INSTRUCTIONS, {"domains": domains, "evidence": evidence},
+                              send=lambda system, text: agent_llm.investigate(system, text, data_dir, run_id))
     except guard.Blocked as error:
         log["error"] = f"海關攔截：{error}"
     except Exception as error:  # CLI 失敗、逾時、用了不允許的功能
@@ -233,3 +237,35 @@ def run(evidence, accounts, data_dir):
     new_items, log["accepted"], log["rejected"] = verify(claims, calls, evidence, accounts)
     log["claims"] = len(log["accepted"]) + len(log["rejected"])
     return evidence + new_items, log
+
+
+# ---------- 報告裡的「AI 調查紀錄」 ----------
+
+def _claim_label(claim):
+    if claim.get("type") == "breach":
+        return f"{claim.get('domain')} ↔ 外洩事件「{claim.get('breach_name')}」"
+    if claim.get("type") == "high_risk_shop":
+        return f"{claim.get('domain')} ↔ 165「{claim.get('shop_name')}」"
+    return f"{claim.get('id')} 的補充建議"
+
+
+def report_section(inv):
+    """inv 是 run() 回傳的調查紀錄。回傳報告裡要加的幾行。"""
+    out = ["## AI 調查紀錄", ""]
+    if inv["error"]:
+        out += [f"⚠️ {inv['error']}，這一步沒有採用任何結論。", ""]
+    out.append(f"AI 調查員用唯讀工具查了 {len(inv['calls'])} 次（上限 {agent_tools.MAX_CALLS} 次），提出 {inv['claims']} 個結論："
+               f"通過依據檢查 {len(inv['accepted'])} 個、刪除 {len(inv['rejected'])} 個。"
+               "每次查詢的參數和回傳內容都記在 `audit.log`。")
+    if inv["calls"]:
+        out += ["", "| 編號 | 工具 | 查詢 | 結果 |", "|---|---|---|---|"]
+        out += [f"| {c['call_id']} | {TOOL_ZH.get(c['tool'], _cell(c['tool']))} | "
+                f"{_cell('、'.join(map(str, c['args'].values())) or '—')} | {_cell(c['summary'])} |"
+                for c in inv["calls"]]
+    if inv["accepted"]:
+        out += ["", "**採用的結論**：" + "、".join(f"{a['id']}（{_cell(_claim_label(a['claim']))}）"
+                                              for a in inv["accepted"])]
+    if inv["rejected"]:
+        out += ["", "**被刪掉的結論**（沒有依據，或依據對不上）：", ""]
+        out += [f"- {_cell(_claim_label(r['claim']))}：{r['problem']}" for r in inv["rejected"]]
+    return out + [""]

@@ -1,4 +1,5 @@
 # 個人資料：絕對不要上傳
+# （新版的個人資料放在專案外面的 ~/privacy-checkup-secrets；secrets/ 是舊版的位置，留著以防萬一）
 secrets/
 data/
 output/

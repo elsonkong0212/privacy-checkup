@@ -8,7 +8,6 @@ from collections import Counter, defaultdict
 from common import parse_date
 
 LEVELS = ("red", "yellow", "green")
-LEVEL_RANK = {level: i for i, level in enumerate(LEVELS)}
 
 DATA_CLASS_ZH = {
     "Email addresses": "email", "Passwords": "密碼", "Usernames": "使用者名稱", "Names": "姓名",
@@ -138,7 +137,7 @@ def build_evidence(pw_summary, accounts, breaches, remedies, shop_matches):
         add("S", kind="high_risk_shop", domain=domain, shop_name="、".join(m["shop_name"] for m in matches),
             confidence="high" if any(m["confidence"] == "high" for m in matches) else "medium",
             times=times, last_listed=listed,
-            source=f"165 高風險賣場名單（{'AI 推測對應' if by_ai else '規則比對'}，請自己確認）",
+            source=f"165 高風險賣場名單（{'店名對應的網域是 AI 翻譯的' if by_ai else '規則比對'}，請自己確認）",
             ai_guess=by_ai, default_level="yellow" if not listed or listed >= recent else "green",
             default_reason=f"{domain} 可能就是 165 公布的高風險賣場{names}，{history}"
                            "被列入代表很多人接到冒用這家名義的詐騙電話，不一定是業者本身被駭。",
@@ -167,17 +166,53 @@ def build_evidence(pw_summary, accounts, breaches, remedies, shop_matches):
     return evidence
 
 
-def finalize(evidence, overrides):
-    """套用 AI 的調整。AI 可以改寫說明、調整優先順序，但最多只能比規則判斷低一級；
-    網站對應是 AI 推測的項目，最多只到 🟡。"""
-    final = []
+KIND_ZH = {"pwned_password": "密碼出現在外洩密碼庫", "reused_password": "共用同一組密碼", "weak_password": "密碼太弱",
+           "breach": "外洩事件", "high_risk_shop": "165 高風險賣場", "lookalike_domain": "疑似仿冒網站",
+           "enable_2fa": "可以開兩步驟驗證", "delete_account": "建議刪除的帳號"}
+# 程式沒辦法自己確認「處理了沒」的項目，才能由你標記已處理（python main.py --done B1）。
+# 密碼類（P、R、W）不行：換完密碼、重新匯出密碼檔再跑一次，程式會自己重新檢查，處理好了就會消失
+DONE_KINDS = {"breach", "high_risk_shop", "lookalike_domain", "enable_2fa", "delete_account"}
+
+
+def assign_keys(evidence):
+    """幫每一筆加上「不會變的編號」key 和一行標題 title。
+
+    報告上的 P1、B2 是流水號，帳號多一個少一個就會變；key 是用種類、網站、事件名稱組成的，
+    同一個問題每次都一樣，用來比較前後兩次的結果、記住你標記已處理的項目。key 和 title 都不會交給 AI。"""
+    seen = Counter()
     for e in evidence:
-        level, reason, action, ai_written = e["default_level"], e["default_reason"], e["default_action"], False
+        kind, domain = e["kind"], e["domain"]
+        if kind == "breach":
+            key, title = f"breach|{domain}|{e['breach_name']}", f"{domain}：外洩事件「{e['breach_name']}」"
+        elif kind == "reused_password":
+            key, title = "reused_password|" + ",".join(e["hosts"]), f"{'、'.join(e['hosts'])}：{KIND_ZH[kind]}"
+        elif kind == "lookalike_domain":
+            key, title = f"{kind}|{domain}|{e['official_domain']}", f"{domain}：{KIND_ZH[kind]}"
+        else:
+            key, title = f"{kind}|{domain}", f"{domain}：{KIND_ZH.get(kind, kind)}"
+        seen[key] += 1  # 同一個網站有兩個帳號的密碼都外洩時，key 會一樣，第二個起加上 #2
+        e["key"], e["title"] = (key if seen[key] == 1 else f"{key}#{seen[key]}"), title
+    return evidence
+
+
+def marked_done(e, done):
+    """這一筆是不是你標記過已處理的。done：{key: {date, title}}（stages/history.py）。"""
+    return e["kind"] in DONE_KINDS and e.get("key") in done
+
+
+def finalize(evidence, overrides, done=None):
+    """套用 AI 改寫的說明（overrides：{證據編號: {reason, action}}）和你標記的已處理（done）。
+
+    燈號只看規則判斷的 default_level，AI 改不了：同一份資料不管跑幾次、用哪一種 AI，燈號都一樣。
+    網站對應是 AI 推測的項目，最多只到 🟡。你標記已處理的項目 level 是 done，不列入燈號，報告另外列出來。"""
+    final, done = [], done or {}
+    for e in evidence:
         override = overrides.get(e["id"])
-        if override:
-            level = LEVELS[min(LEVEL_RANK[override["level"]], LEVEL_RANK[level] + 1)]
-            reason, action, ai_written = override["reason"], override["action"], True
-        if e.get("ai_guess") and level == "red":
-            level = "yellow"
-        final.append({**e, "level": level, "reason": reason, "action": action, "ai_written": ai_written})
+        level = "yellow" if e.get("ai_guess") and e["default_level"] == "red" else e["default_level"]
+        if marked_done(e, done):
+            level, e = "done", {**e, "done_date": done[e["key"]].get("date")}
+        final.append({**e, "level": level,
+                      "reason": override["reason"] if override else e["default_reason"],
+                      "action": override["action"] if override else e["default_action"],
+                      "ai_written": bool(override)})
     return final

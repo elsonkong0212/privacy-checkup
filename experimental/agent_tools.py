@@ -3,7 +3,7 @@
 AI 只能透過這幾個工具查資料：全部只能讀、不能改，也不會連到你帳號所在的網站。
 兩種接法用的是同一套工具：
 - Claude Code、Codex 等支援 MCP 的 AI 工具：透過 mcp_server.py
-- Gemini API：由 llm.py 直接把工具交給 AI
+- Gemini API：由 agent_llm.py 直接把工具交給 AI
 
 每次呼叫都會：
 1. 編號（T1、T2…）：AI 寫結論時要引用這個編號，程式再回頭檢查依據

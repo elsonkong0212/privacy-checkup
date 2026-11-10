@@ -8,29 +8,28 @@ gemini：Google Gemini API（到 Google AI Studio 申請免費的 API 金鑰，�
 none  ：不使用 AI，所有判斷改用規則，報告照樣產生
 
 不管用哪一種，AI 都只拿得到我們給它的東西：
-- 一般問答（AI-1/2/3）：AI 沒有任何工具，只能回答文字
-- 調查模式（--agent）：AI 只有 agent_tools.py 的唯讀工具；內建的讀檔、執行指令、上網功能全部關掉
-- CLI 一律在空的暫存資料夾裡執行，就算有工具也碰不到專案裡的檔案
-Codex 的內建功能很多，所以另外會檢查它的執行紀錄：只要用了我們的工具以外的功能，這次結果就作廢。
+- AI 沒有任何工具，只能回答文字：內建的讀檔、執行指令、上網功能全部關掉
+- CLI 一律在空的暫存資料夾裡執行，碰不到專案裡的檔案
+Codex 的內建功能很多，所以另外會檢查它的執行紀錄：只要用了不允許的功能，這次結果就作廢。
+
+實驗功能「AI 調查員」（experimental/，預設關閉）會多接上一個唯讀的工具伺服器，
+也就是 _claude、_codex 的 server 參數；一般的問答不會用到它。
 """
 import glob
-import importlib.util
 import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-from common import BASE
+from common import SECRETS
 
 NAMES = {"claude": "Claude Code CLI", "codex": "Codex CLI", "gemini": "Gemini API"}
 CHOICES = ["auto", "claude", "codex", "gemini", "none"]
-MCP_SERVER = BASE / "mcp_server.py"
 TIMEOUT, AGENT_TIMEOUT = 300, 900
 
 _backend = "none"
@@ -96,7 +95,7 @@ def _activate(backend):
         key = gemini_api_key()
         if not key:
             return _unavailable("找不到 Gemini API 金鑰", "到 https://aistudio.google.com/apikey 免費申請，"
-                                "存成 secrets/gemini_api_key.txt，或設定環境變數 GEMINI_API_KEY。")
+                                f"存成 {SECRETS / 'gemini_api_key.txt'}，或設定環境變數 GEMINI_API_KEY。")
         _api_key = key
         try:
             model = _model or _gemini_pick_model()
@@ -119,13 +118,6 @@ def available():
     return _backend != "none"
 
 
-def agent_ready():
-    """AI 調查員需要的東西都在嗎？回傳 (可以用嗎, 不能用的原因)。"""
-    if _backend in ("claude", "codex") and importlib.util.find_spec("mcp") is None:
-        return False, "AI 調查員要先安裝 MCP 套件（pip install mcp）"
-    return True, None
-
-
 def describe():
     if _backend == "none":
         return ("未使用（這台電腦找不到已登入的 Claude Code、Codex，也沒有 Gemini 金鑰，全部用規則判斷）" if _auto
@@ -137,11 +129,6 @@ def describe():
 def complete(system_prompt, prompt):
     """一般問答：AI 沒有任何工具。"""
     return _with_fallback(lambda: _complete(system_prompt, prompt))
-
-
-def investigate(system_prompt, prompt, data_dir, run_id):
-    """調查模式：AI 只能用 agent_tools.py 的工具。回傳 AI 最後的回答。"""
-    return _with_fallback(lambda: _investigate(system_prompt, prompt, data_dir, run_id))
 
 
 def _with_fallback(ask):
@@ -167,16 +154,6 @@ def _complete(system_prompt, prompt):
     if _backend == "codex":
         return _codex(system_prompt, prompt)
     return _gemini_complete(system_prompt, prompt)
-
-
-def _investigate(system_prompt, prompt, data_dir, run_id):
-    if _backend == "gemini":
-        import agent_tools  # 放在這裡，避免 guard → llm → agent_tools → guard 互相引用
-        return _gemini_investigate(system_prompt, prompt, agent_tools.ToolBox(data_dir, run_id, "evidence.json"))
-    server = [sys.executable, str(MCP_SERVER), "--data", str(data_dir), "--run", run_id, "--findings", "evidence.json"]
-    if _backend == "claude":
-        return _claude(system_prompt, prompt, server)
-    return _codex(system_prompt, prompt, server)
 
 
 def _run(command, stdin, cwd, timeout, env=None):
@@ -361,12 +338,11 @@ def _codex(system_prompt, prompt, server=None):
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_PREFERRED = ["gemini-flash-latest"]  # Google 維護的別名，永遠指向最新的 Flash 模型
-GEMINI_MAX_TURNS = 40
 
 
 def gemini_api_key():
     key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    path = BASE / "secrets" / "gemini_api_key.txt"
+    path = SECRETS / "gemini_api_key.txt"
     if not key and path.exists():
         key = path.read_text(encoding="utf-8").strip()
     return key or None
@@ -425,25 +401,3 @@ def _gemini_complete(system_prompt, prompt):
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json"},
     }))
-
-
-def _gemini_investigate(system_prompt, prompt, box):
-    """程式自己跑「AI 想查 → 程式用工具箱查 → 結果交回給 AI」的迴圈。AI 沒有工具箱以外的任何功能。"""
-    import agent_tools
-    base = {"systemInstruction": {"parts": [{"text": system_prompt}]},
-            "tools": [{"functionDeclarations": agent_tools.declarations()}]}
-    contents = [{"role": "user", "parts": [{"text": prompt}]}]
-    for _ in range(GEMINI_MAX_TURNS):
-        content = _gemini_generate({**base, "contents": contents})
-        calls = [part["functionCall"] for part in content["parts"] if "functionCall" in part]
-        if not calls:
-            return _gemini_text(content)
-        contents.append(content)  # 原封不動放回去：Gemini 3 需要裡面的 thoughtSignature
-        responses = []
-        for call in calls:
-            response = {"name": call.get("name"), "response": box.call(call.get("name"), call.get("args"))}
-            if call.get("id"):
-                response["id"] = call["id"]
-            responses.append({"functionResponse": response})
-        contents.append({"role": "user", "parts": responses})
-    raise RuntimeError("AI 調查的回合太多，已停止")

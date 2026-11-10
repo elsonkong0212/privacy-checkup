@@ -1,8 +1,9 @@
 """已知答案測試：每次執行前，先用「已經知道答案」的資料確認工具本身算得對。
 
-也可以單獨執行：python tests/known_answers.py
+也可以單獨執行：python tests/known_answers.py（這時實驗功能 experimental/ 的測試也會一起跑）
 """
 import contextlib
+import io
 import json
 import secrets
 import sys
@@ -20,7 +21,7 @@ from stages import breach_match, passwords
 @contextlib.contextmanager
 def quiet_guard(folder):
     """測試用：海關和工具箱的紀錄寫到暫存資料夾，也不算進這次執行的統計。"""
-    saved_log, saved_stats = guard.AUDIT_LOG, dict(guard.stats)
+    saved_log, saved_stats, saved_sent = guard.AUDIT_LOG, dict(guard.stats), list(guard.sent_log)
     guard.AUDIT_LOG = Path(folder) / "audit.log"
     try:
         yield
@@ -28,6 +29,7 @@ def quiet_guard(folder):
         guard.AUDIT_LOG = saved_log
         guard.stats.clear()
         guard.stats.update(saved_stats)
+        guard.sent_log[:] = saved_sent
 
 
 def t_domains():
@@ -36,16 +38,159 @@ def t_domains():
         "https://accounts.google.com/": "google.com",
         "https://24h.pchome.com.tw/": "pchome.com.tw",
         "android://abc@com.example.app/": None,
+        # 尾碼有幾段是查 Public Suffix List 決定的：以前手寫的清單沒有 co.th，會把整個網站整理成 co.th
+        "https://shopee.co.th/login": "shopee.co.th",
+        "https://www.lazada.co.id/": "lazada.co.id",
+        "https://moodle.ncku.edu.tw/login": "ncku.edu.tw",
+        # 每個人各有一個子網域的平台：不同人的網站不能算成同一個
+        "https://someone.github.io/blog": "someone.github.io",
+        "https://shop-a.myshopify.com/": "shop-a.myshopify.com",
+        "https://www.city.kobe.jp/": "city.kobe.jp",           # 清單裡的例外規則
+        "https://login.shopee-tw-service.example/": "shopee-tw-service.example",  # 清單上沒有的尾碼
     }
     wrong = {url: normalize_domain(url) for url, expected in cases.items() if normalize_domain(url) != expected}
-    return not wrong, f"{len(cases)} 個網址都整理正確" if not wrong else f"整理錯誤：{wrong}"
+    return not wrong, f"{len(cases)} 個網址都整理正確（含 co.th、github.io 這類尾碼）" if not wrong else f"整理錯誤：{wrong}"
 
 
 def t_whitelist():
-    result = guard.keep_only({"domain": "a.com", "password": "x", "username": "u", "email": "e@x.com",
-                              "evidence": [{"id": "P1", "password": "y"}]})
-    ok = result == {"domain": "a.com", "evidence": [{"id": "P1"}]}
-    return ok, "密碼、帳號名稱、email 欄位都被丟掉" if ok else f"結果不對：{result}"
+    """白名單是每個工作各一份：翻店名那一步就算被塞進帳號網域也送不出去；沒登記的工作不能呼叫 AI。"""
+    evidence = guard.keep_only({"domain": "a.com", "password": "x", "username": "u", "email": "e@x.com",
+                                "evidence": [{"id": "P1", "password": "y", "note": "備註"}]},
+                               guard.TASKS["explain"]["fields"])
+    shops = guard.keep_only({"shops": [{"shop_id": "shop_1", "shop_name": "某某小舖", "domain": "a.com"}],
+                             "domains": ["a.com"]}, guard.TASKS["translate_shops"]["fields"])
+    try:
+        guard.ask_llm("沒登記的工作", "system", "說明", {"domain": "a.com"})
+        refused = False
+    except guard.Blocked:
+        refused = True
+    ok = (evidence == {"domain": "a.com", "evidence": [{"id": "P1"}]}
+          and shops == {"shops": [{"shop_id": "shop_1", "shop_name": "某某小舖"}]} and refused)
+    return ok, ("密碼、帳號名稱、email、備註都被丟掉；翻店名那一步連網域都送不出去；沒登記的工作不能呼叫 AI" if ok
+                else f"結果不對：{evidence}、{shops}、沒登記的工作被擋下={refused}")
+
+
+def t_core_only():
+    """主程式不會載入實驗功能：沒加 --agent 時，experimental/ 裡的程式和它要用的 mcp 套件完全不會被執行。"""
+    import subprocess
+    code = "import sys, main; print(sorted(m for m in sys.modules if m.split('.')[0] in ('experimental', 'mcp')))"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120,
+                            cwd=Path(__file__).resolve().parent.parent)
+    loaded = result.stdout.strip()
+    ok = result.returncode == 0 and loaded == "[]"
+    return ok, ("載入整個主程式之後，experimental/ 裡的程式一個都沒有被載入" if ok
+                else f"結果不對：{loaded or result.stderr[-200:]}")
+
+
+def t_download_cache():
+    """下載快取：沒過期不重抓；過期了但抓不到（或抓到看不懂的內容）就用舊的，不會把舊的蓋掉。"""
+    import io
+    import os
+    import time
+    import common
+    calls = []
+
+    def good():
+        calls.append(1)
+        return {"第幾次下載": len(calls)}
+
+    def broken():
+        raise OSError("連不上")
+
+    saved = common.CACHE
+    try:
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            common.CACHE = Path(folder)
+            long_ago = time.time() - 3 * 86400
+            first, _ = common.cached_json("a.json", fetch=good)
+            again, _ = common.cached_json("a.json", fetch=good)       # 還沒過期：不重抓
+            os.utime(Path(folder) / "a.json", (long_ago, long_ago))
+            stale, _ = common.cached_json("a.json", fetch=broken)     # 過期了但抓不到：用舊的
+            fresh, _ = common.cached_json("a.json", fetch=good)       # 過期了而且抓得到：換成新的
+            keep, _ = common.cached_json("b.json", max_age_hours=None, fetch=good)
+            os.utime(Path(folder) / "b.json", (long_ago, long_ago))
+            kept, _ = common.cached_json("b.json", max_age_hours=None, fetch=broken)  # 不會過期的：不再下載
+    finally:
+        common.CACHE = saved
+    ok = (first == again == stale == {"第幾次下載": 1} and fresh == {"第幾次下載": 2}
+          and keep == kept == {"第幾次下載": 3} and len(calls) == 3)
+    return ok, ("沒過期不重抓；過期了抓不到就用舊的；抓得到才換新的" if ok
+                else f"結果不對：{first}、{again}、{stale}、{fresh}、{keep}、{kept}，下載了 {len(calls)} 次")
+
+
+CHROME_HEADER = "name,url,username,password,note\n"
+
+
+def t_export_detect():
+    """只認瀏覽器匯出的密碼檔；帳號清單、Gmail 候選清單這類 CSV 不算；可以只找某個時間之後的。"""
+    import os
+    with tempfile.TemporaryDirectory() as folder:
+        folder = Path(folder)
+        (folder / "Chrome 密碼.csv").write_text(CHROME_HEADER + "a,https://a.example,me,password123,\n", encoding="utf-8")
+        (folder / "my_accounts.csv").write_text("domain,still_using,note\na.example,y,\n", encoding="utf-8")
+        old = folder / "logins.csv"
+        old.write_text("url,username,password\nhttps://b.example,me,x\n", encoding="utf-8")
+        os.utime(old, (1_600_000_000, 1_600_000_000))  # 假裝是 2020 年匯出的
+        every = sorted(p.name for p in passwords.find_exports([folder]))
+        recent = [p.name for p in passwords.find_exports([folder], newer_than=1_700_000_000)]
+    ok = every == ["Chrome 密碼.csv", "logins.csv"] and recent == ["Chrome 密碼.csv"]
+    return ok, "Chrome、Firefox 的匯出檔都認得，其他 CSV 不誤認；分得出新舊" if ok else f"結果不對：{every}、{recent}"
+
+
+def t_wait_and_destroy():
+    """程式先等，匯出的檔案一寫完就讀取；讀完刪掉，留下的只有雜湊值。舊的匯出檔不會被當成這次的。"""
+    import os
+    import threading
+    import time
+    with tempfile.TemporaryDirectory() as folder:
+        folder = Path(folder)
+        old = folder / "舊的.csv"
+        old.write_text(CHROME_HEADER + "a,https://a.example,me,old-password,\n", encoding="utf-8")
+        os.utime(old, (1_600_000_000, 1_600_000_000))
+        since = time.time()
+        new = folder / "Chrome 密碼.csv"
+        writer = threading.Timer(0.3, lambda: new.write_text(
+            CHROME_HEADER + "a,https://a.example,me,password123,\nb,https://b.example,me,password123,\n", encoding="utf-8"))
+        writer.start()
+        found = passwords.wait_for_export([folder], since, timeout=10, interval=0.1)
+        writer.join()
+        entries, secret_hashes, _ = passwords.read_entries(found) if found else ([], {}, 0)
+        if found:
+            passwords.destroy(found)
+        gone = found is not None and not found.exists() and old.exists()
+    plaintext_left = any("password123" in str(field) for entry in entries for field in entry)
+    ok = found == new and gone and len(entries) == 2 and not plaintext_left and len(secret_hashes) == 1
+    return ok, ("等到匯出才讀、讀完就刪；記憶體裡只剩雜湊值；舊檔案不會被誤認成這次的" if ok
+                else f"結果不對：找到 {found}、刪掉了 {gone}、留下明文 {plaintext_left}")
+
+
+def t_sync_folder():
+    root = Path(tempfile.gettempdir()).anchor  # C:\ 或 /，不受這台電腦的資料夾影響
+    cases = {
+        f"{root}Users/me/OneDrive - 國立成功大學/privacy-checkup/secrets": "OneDrive",
+        f"{root}Users/me/Dropbox/secrets": "Dropbox",
+        f"{root}Users/me/Library/Mobile Documents/com~apple~CloudDocs/secrets": "iCloud",
+        f"{root}data/privacy-checkup/secrets": None,
+    }
+    wrong = [path for path, service in cases.items() if passwords.sync_service(path) != service]
+    return not wrong, "OneDrive、Dropbox、iCloud 這類會同步上雲端的資料夾都認得出來" if not wrong else f"認錯：{wrong}"
+
+
+def t_without_passwords():
+    """沒有檢查密碼的那一次：上次的密碼問題不能算成「解決了」，要留到下次有檢查時再比。"""
+    from stages import history
+    item = {"kind": "pwned_password", "domain": "a.com", "level": "red", "key": "pwned_password|a.com",
+            "title": "a.com：密碼出現在外洩密碼庫"}
+    breach = {"kind": "breach", "domain": "b.com", "level": "red", "key": "breach|b.com|B", "title": "b.com：外洩事件"}
+    skipped = history.compare([item, breach], [breach], passwords_checked=False)
+    with tempfile.TemporaryDirectory() as folder:
+        history.save(Path(folder), [breach], "第二次", carry=skipped["unchecked"])
+        kept = history.latest(Path(folder))["items"]
+    later = history.compare(kept, [breach], passwords_checked=True)  # 下次有檢查，而且真的換掉了
+    ok = (not skipped["resolved"] and [i["key"] for i in skipped["unchecked"]] == [item["key"]]
+          and [i["key"] for i in later["resolved"]] == [item["key"]])
+    return ok, ("沒檢查密碼時，上次的密碼問題不算解決；下次有檢查、確定不見了才算" if ok
+                else f"結果不對：{skipped}、{later}")
 
 
 def blocks(sample, label):
@@ -66,9 +211,57 @@ def t_blocks_my_password():
     return bool(reasons), "擋下夾帶在資料裡的密碼" if reasons else "沒有擋下密碼！"
 
 
+def t_blocks_odd_passwords():
+    """密碼裡有空白、標點、引號，或夾在一句話中間，都要擋得下來；同時不能誤擋正常資料。"""
+    fakes = {"有空白": "Test only pw 7781", "有逗號和冒號": "Test,only:pw-7781", "有引號和反斜線": 'Test"only\\pw-7781',
+             "有大括號": "Test{only}pw-7781", "很短": "Tp,7 1"}
+    secrets_ = {passwords.sha1_hex(pw): len(pw.encode("utf-8")) for pw in fakes.values()}
+    guard.register_secret_hashes(secrets_)
+    try:
+        def blocked(data):
+            return bool(guard.find_sensitive(json.dumps(data, ensure_ascii=False), data))
+
+        missed = [label for label, pw in fakes.items() if not blocked({"domain": "a.com", "sender_name": pw})]
+        missed += [f"{label}（夾在句子裡）" for label, pw in fakes.items()
+                   if label != "很短" and not blocked({"sender_name": f"你的密碼是{pw}喔"})]
+        clean = not blocked({"domain": "adobe.com", "pwned_count": 24230577, "sender_name": "Test only 測試"})
+    finally:
+        guard.forget_secret_hashes(secrets_)
+    ok = not missed and clean
+    return ok, ("密碼含空白、逗號、引號、大括號，或夾在一句話中間都擋得下來；正常資料不誤擋" if ok
+                else f"沒擋下：{missed}；正常資料{'沒有' if clean else '被'}誤擋")
+
+
 def t_clean_passes():
     reasons = guard.find_sensitive('{"domain": "adobe.com", "pwned_count": 24230577, "breach_date": "2013-10-04"}')
     return not reasons, "正常資料不會被誤擋" if not reasons else f"誤擋：{reasons}"
+
+
+def t_secrets_outside():
+    """個人資料放在專案外面：舊版留在專案 secrets/ 的檔案會搬過去，新位置已經有的同名檔案不會被蓋掉。"""
+    import io
+    import os
+    import common
+    saved = common.SECRETS, common.OLD_SECRETS
+    try:
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            common.OLD_SECRETS, common.SECRETS = Path(folder) / "project" / "secrets", Path(folder) / "home" / "mine"
+            common.OLD_SECRETS.mkdir(parents=True)
+            common.SECRETS.mkdir(parents=True)
+            (common.OLD_SECRETS / "my_accounts.csv").write_text("舊的", encoding="utf-8")
+            (common.OLD_SECRETS / "gmail_candidates.csv").write_text("舊的", encoding="utf-8")
+            (common.SECRETS / "gmail_candidates.csv").write_text("新的", encoding="utf-8")
+            common.prepare_secrets()
+            moved = (common.SECRETS / "my_accounts.csv").exists() and not (common.OLD_SECRETS / "my_accounts.csv").exists()
+            kept = ((common.SECRETS / "gmail_candidates.csv").read_text(encoding="utf-8") == "新的"
+                    and (common.OLD_SECRETS / "gmail_candidates.csv").exists())
+        inside = common.BASE in saved[0].resolve().parents
+    finally:
+        common.SECRETS, common.OLD_SECRETS = saved
+    custom = bool(os.environ.get("PRIVACY_CHECKUP_SECRETS"))  # 自己指定位置的話，放哪裡由你決定
+    ok = moved and kept and (custom or not inside)
+    return ok, ("個人資料資料夾不在專案裡；舊位置的檔案會搬過去，同名的檔案不會被蓋掉" if ok
+                else f"結果不對：搬過去={moved}、沒蓋掉={kept}、在專案裡={inside}")
 
 
 def t_gmail_aggregate():
@@ -302,88 +495,214 @@ def t_text_check():
     return ok, "網址只看網域（不會把 .html 當成網站）；提到清單以外的網站照樣擋下" if ok else f"結果不對：{with_url}、{other_site}"
 
 
-def t_tool_guard():
-    import agent_tools
-    with tempfile.TemporaryDirectory() as folder, quiet_guard(folder):
-        save_json(Path(folder) / "shops165.json", [
-            {"shop_name": "好物客服 demo@example.com", "times": 1, "last_listed": "2026-10-01"},
-            {"shop_name": "好物商店", "times": 2, "last_listed": "2026-10-08"}])
-        box = agent_tools.ToolBox(folder, run_id="test")
-        blocked = box.call("search_165", {"keyword": "好物客服"})
-        normal = box.call("search_165", {"keyword": "好物商店"})
-        unknown = box.call("read_file", {"path": "secrets/passwords.csv"})
-        logged = agent_tools.load_calls(folder, "test")
-    ok = ("海關攔截" in blocked.get("error", "") and normal.get("total") == 1 and "error" in unknown
-          and list(logged) == ["T1", "T2", "T3"])
-    return ok, ("回傳含 email 就擋下、正常查詢照常、沒有的工具不能用、每次呼叫都有編號和紀錄" if ok
-                else f"結果不對：{blocked}、{normal}、{unknown}、{list(logged)}")
-
-
-def t_parallel_calls():
-    import agent_tools
-    from concurrent.futures import ThreadPoolExecutor
-    with tempfile.TemporaryDirectory() as folder, quiet_guard(folder):
-        save_json(Path(folder) / "shops165.json", [{"shop_name": "好物商店", "times": 1, "last_listed": "2026-10-01"}])
-        box = agent_tools.ToolBox(folder, run_id="test")
-        with ThreadPoolExecutor(8) as pool:
-            results = list(pool.map(lambda _: box.call("search_165", {"keyword": "好物"}), range(20)))
-        logged = agent_tools.load_calls(folder, "test")
-    ids = {r["call_id"] for r in results}
-    ok = len(ids) == 20 and list(logged) == [f"T{i}" for i in range(1, 21)]
-    return ok, "同時呼叫 20 次，編號不重複、紀錄沒有遺漏" if ok else f"結果不對：{sorted(ids)}、{list(logged)}"
-
-
-def t_citation_check():
-    from stages.investigate import verify
-    accounts = [{"domain": "bnext.com.tw", "sources": [], "still_using": True, "first_seen": None}]
-    breach = {"breach_name": "Bnext Media", "breach_domain": "bnextmedia.com", "breach_date": "2020-01-01",
-              "data_classes": ["Email addresses", "Passwords"], "pwn_count": 1000}
-    calls = {"T1": {"call_id": "T1", "tool": "search_breaches", "args": {"keyword": "bnext"},
-                    "result": {"call_id": "T1", "total": 1, "matches": [breach]}},
-             "T2": {"call_id": "T2", "tool": "search_breaches", "args": {"keyword": "other"},
-                    "result": {"call_id": "T2", "total": 0, "matches": []}}}
-    claims = [
-        {"type": "breach", "domain": "bnext.com.tw", "breach_name": "Bnext Media",
-         "reason": "bnextmedia.com 是同一家公司的網域", "sources": ["T1"]},                      # 有依據：採用
-        {"type": "breach", "domain": "bnext.com.tw", "breach_name": "Made Up", "reason": "猜的", "sources": ["T2"]},
-        {"type": "breach", "domain": "bnext.com.tw", "breach_name": "Bnext Media", "reason": "同一家", "sources": ["T9"]},
-        {"type": "breach", "domain": "evil.com", "breach_name": "Bnext Media", "reason": "同一家", "sources": ["T1"]},
-        {"type": "note", "id": "B9", "note": "先換密碼", "sources": ["T1"]},
-    ]
-    new_items, accepted, rejected = verify(claims, calls, [], accounts)
-    ok = (len(new_items) == 1 and new_items[0]["id"] == "B1" and new_items[0]["ai_guess"]
-          and new_items[0]["default_level"] == "yellow" and len(accepted) == 1 and len(rejected) == 4)
-    return ok, ("有依據的結論才採用（1 個）；編造、引用不存在的查詢、別人的網域都被刪掉（4 個）" if ok
-                else f"結果不對：採用 {accepted}、刪除 {rejected}")
-
-
-def t_gemini_loop():
-    import agent_tools
-    import llm
-    replies = [
-        {"candidates": [{"content": {"role": "model", "parts": [
-            {"functionCall": {"name": "search_165", "args": {"keyword": "好物"}}, "thoughtSignature": "sig-1"}]}}]},
-        {"candidates": [{"content": {"role": "model", "parts": [{"text": "[]"}]}}]},
-    ]
+@contextlib.contextmanager
+def fake_ai(reply):
+    """測試用：假裝 AI 回了這段內容。用 with fake_ai(...) as sent，sent 會記下程式交給 AI 的資料。"""
+    import io
+    from stages import ai_steps
     sent = []
 
-    def fake_gemini(method, path, body=None):
-        sent.append(json.loads(json.dumps(body)))  # 複製一份，之後的修改不影響紀錄
-        return replies[len(sent) - 1]
+    def fake_ask(task, instructions, data, expected_type, **options):
+        sent.append(data)
+        return reply
 
-    original = llm._gemini
+    original = ai_steps._ask
+    ai_steps._ask = fake_ask
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            yield sent
+    finally:
+        ai_steps._ask = original
+
+
+def t_levels_fixed():
+    """燈號由規則決定：AI 就算回傳別的等級也沒有用，只有說明文字會採用。"""
+    from stages import ai_steps
+    from stages.findings import finalize
+    evidence = [{"id": "P1", "kind": "pwned_password", "domain": "a.com", "default_level": "red",
+                 "default_reason": "規則寫的原因", "default_action": "規則寫的做法"},
+                {"id": "W1", "kind": "weak_password", "domain": "b.com", "default_level": "yellow",
+                 "default_reason": "規則寫的原因", "default_action": "規則寫的做法"}]
+    with fake_ai([{"id": "P1", "level": "green", "reason": "其實不急", "action": "有空再到 a.com 換密碼"},
+                  {"id": "W1", "level": "red", "reason": "請改到 evil.example 處理", "action": "馬上處理"}]):
+        final = {f["id"]: f for f in finalize(evidence, ai_steps.explain(evidence, {"a.com", "b.com"}))}
+    ok = (final["P1"]["level"] == "red" and final["P1"]["reason"] == "其實不急" and final["P1"]["ai_written"]
+          and final["W1"]["level"] == "yellow" and final["W1"]["reason"] == "規則寫的原因" and not final["W1"]["ai_written"])
+    return ok, ("AI 想把 🔴 降成 🟢、把 🟡 升成 🔴 都沒有用，燈號照規則；說明採用 AI 寫的，不合格的用規則寫的" if ok
+                else f"結果不對：{final}")
+
+
+def t_summary_numbers():
+    """總結的統計數字由程式寫，也不交給 AI；AI 自己編數字的句子會被刪掉。"""
+    from stages import ai_steps
+    final = [{"id": "P1", "kind": "pwned_password", "level": "red", "domain": "a.com", "action": "立刻到 a.com 換密碼。"},
+             {"id": "T1", "kind": "enable_2fa", "level": "green", "domain": "a.com", "action": "開啟兩步驟驗證。"}]
+    counts = {"accounts": 12, "pwned_passwords": 1, "reused_groups": 1, "breaches": 3, "lookalikes": 0,
+              "red": 1, "yellow": 0, "green": 1}
+    with fake_ai({"summary": "你的 12 個帳號中，有 7 個狀況良好。請先到 a.com 換密碼（P1）。接到可疑電話先打 165 查證。"}) as sent:
+        text, by_ai = ai_steps.summarize(final, counts, {"a.com"})
+    ok = (by_ai and list(sent[0]) == ["top_findings"] and "狀況良好" not in text and "請先到 a.com 換密碼" in text
+          and "打 165 查證" in text and "盤點 12 個帳號" in text and "🟢 有空再處理 1 件" in text)
+    return ok, ("統計數字由程式寫、不交給 AI；AI 自己編的「7 個狀況良好」被刪掉，其他句子照常採用" if ok
+                else f"結果不對：{text}、送給 AI 的欄位：{[list(d) for d in sent]}")
+
+
+def t_shop_table():
+    """專案內附的 165 店名對照表：沒有 AI、這台電腦也沒翻過，照樣比對得到；表上寫沒有網域的店名不會再問 AI。"""
+    from stages import ai_steps
+    table = json.loads(ai_steps.SHOP_TABLE.read_text(encoding="utf-8"))["shops"]
+    bad = [d for entry in table.values() for d in entry["domains"] if normalize_domain(d) != d]
+    empty = next(entry["shop_name"] for entry in table.values() if not entry["domains"])
+    shops = [{"shop_id": "shop_1", "shop_name": "蝦皮購物", "times": 1, "last_listed": "2026-10-01"},
+             {"shop_id": "shop_2", "shop_name": empty, "times": 1, "last_listed": "2026-10-01"}]
+    with tempfile.TemporaryDirectory() as folder, fake_ai(None) as asked:
+        matches, translated = ai_steps.match_165(shops, ["shopee.tw", "adobe.com"], Path(folder) / "shop_domains.json")
+    ok = not bad and [m["domain"] for m in matches] == ["shopee.tw"] and not translated and not asked
+    return ok, (f"內附 {len(table)} 個店名；不用 AI 也對得到蝦皮，表上有的店名不會再問 AI" if ok
+                else f"結果不對：{matches}、格式不對的網域 {bad}、問了 AI {asked}")
+
+
+def t_sent_log():
+    """報告裡「這次送給 AI 的資料」：每一步送了幾次、裡面有幾個你的帳號網域，是照海關的實際紀錄算的。"""
+    import llm
+    from stages import report
+    saved = llm.available, llm.complete
     with tempfile.TemporaryDirectory() as folder, quiet_guard(folder):
-        save_json(Path(folder) / "shops165.json", [{"shop_name": "好物商店", "times": 1, "last_listed": "2026-10-01"}])
-        llm._gemini = fake_gemini
+        llm.available, llm.complete = (lambda: True), (lambda system_prompt, prompt: "[]")
         try:
-            answer = llm._gemini_investigate("system", "請調查", agent_tools.ToolBox(folder, run_id="test"))
+            guard.sent_log.clear()
+            guard.ask_llm("translate_shops", "system", "說明", {"shops": [{"shop_id": "shop_1", "shop_name": "某某小舖"}]})
+            guard.ask_llm("describe_sites", "system", "說明", {"sites": [{"domain": "a.com"}, {"domain": "b.com"}]})
+            guard.ask_llm("explain", "system", "說明", {"evidence": [
+                {"id": "B1", "domain": "a.com"}, {"id": "R1", "domain": "b.com", "domains": ["b.com", "c.com"]}]},
+                hide={"網站": ["a.com", "b.com", "c.com"]})
+            rows = {r["name"]: r for r in report.sent_summary(guard.sent_log, {"a.com", "b.com", "c.com", "d.com"})["rows"]}
         finally:
-            llm._gemini = original
-    contents = sent[-1]["contents"] if len(sent) == 2 else []
-    reply = contents[2]["parts"][0]["functionResponse"]["response"] if len(contents) == 3 else {}
-    ok = (answer == "[]" and contents[1]["parts"][0].get("thoughtSignature") == "sig-1"
-          and reply.get("call_id") == "T1" and reply.get("total") == 1)
-    return ok, "AI 要求查詢 → 程式用工具箱查 → 結果正確交回 AI" if ok else f"結果不對：{answer}、{contents}"
+            llm.available, llm.complete = saved
+    ok = (rows["165 店名翻成網域"]["times"] == 1 and rows["165 店名翻成網域"]["mine"] == 0
+          and rows["辨認網站"]["mine"] == 2 and rows["寫白話說明"]["times"] == 1 and rows["寫白話說明"]["mine"] == 0
+          and rows["寫總結"]["times"] == 0)
+    return ok, ("翻店名送出 0 個你的帳號網域、辨認網站送出 2 個、寫說明用代號所以是 0 個；沒送的步驟記 0 次" if ok
+                else f"結果不對：{rows}")
+
+
+def t_masked_names():
+    """寫說明時 AI 看到的是代號，不是網站和事件的名稱；回來之後換回原本的名稱，AI 自己編的代號不採用。"""
+    import llm
+    from stages import ai_steps
+    evidence = [{"id": "B1", "kind": "breach", "domain": "adobe.com", "breach_name": "Adobe", "breach_date": "2013-10-04",
+                 "data_classes": ["Passwords"], "first_seen": None, "default_level": "red"},
+                {"id": "W1", "kind": "weak_password", "domain": "bnext.example", "default_level": "yellow"}]
+    seen = []
+
+    def fake_complete(system_prompt, prompt):
+        seen.append(prompt)
+        site = json.loads(prompt.split("資料（JSON）：", 1)[1])["evidence"][0]["domain"]  # AI 看到的是代號
+        return json.dumps([{"id": "B1", "reason": f"{site} 在 2013-10-04 外洩過密碼", "action": f"到 {site} 換密碼"},
+                           {"id": "W1", "reason": "[網站99] 的密碼太弱", "action": "換長一點的密碼"}], ensure_ascii=False)
+
+    saved = llm.available, llm.complete
+    with tempfile.TemporaryDirectory() as folder, quiet_guard(folder), contextlib.redirect_stdout(io.StringIO()):
+        llm.available, llm.complete = (lambda: True), fake_complete
+        try:
+            overrides = ai_steps.explain(evidence, {"adobe.com", "bnext.example"})
+            try:  # 忘了換代號：海關直接擋下
+                guard.ask_llm("explain", "system", "說明", {"evidence": [{"id": "B1", "domain": "adobe.com"}]})
+                refused = False
+            except guard.Blocked:
+                refused = True
+        finally:
+            llm.available, llm.complete = saved
+    hidden = bool(seen) and not any(word in seen[0] for word in ("adobe.com", "Adobe", "bnext.example"))
+    ok = (hidden and overrides == {"B1": {"reason": "adobe.com 在 2013-10-04 外洩過密碼", "action": "到 adobe.com 換密碼"}}
+          and refused)
+    return ok, ("送出去的內容裡沒有網域和事件名稱，只有代號；回來後換回原本的名稱；AI 編的代號不採用；沒換代號就送會被擋" if ok
+                else f"結果不對：沒有露出名稱={hidden}、{overrides}、沒換代號被擋={refused}")
+
+
+def t_gmail_certain_not_sent():
+    """Gmail 判斷：規則已經確定還在用的網站（最近有登入、訂單信）直接填 y，不送給 AI。"""
+    import datetime
+    from stages import ai_steps, gmail_triage
+    rows = [{"domain": "active.example", "hints": "訂單", "likely_account": "中", "first_seen": "2020-01-01",
+             "last_seen": "2026-10-20", "last_activity": "2026-10-20"},
+            {"domain": "quiet.example", "hints": "註冊", "likely_account": "高", "first_seen": "2018-01-01",
+             "last_seen": "2021-03-01", "last_activity": ""}]
+    asked = []
+    original = ai_steps.classify_senders
+    ai_steps.classify_senders = lambda todo, today: asked.extend(r["domain"] for r in todo) or {}
+    saved = llm_state()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), tempfile.TemporaryDirectory() as folder, quiet_guard(folder):
+            import llm
+            llm.configure = lambda backend, model=None: None
+            llm.available = lambda: True
+            llm.describe = lambda: "測試"
+            gmail_triage.run(rows, "auto", today=datetime.date(2026, 11, 10))
+    finally:
+        ai_steps.classify_senders = original
+        saved()
+    ok = asked == ["quiet.example"] and rows[0]["still_using"] == "y" and not rows[0]["review"]
+    return ok, "最近有訂單信的網站直接填 y、沒有送給 AI；看不出來的才送" if ok else f"結果不對：送給 AI {asked}、{rows[0]}"
+
+
+def llm_state():
+    """測試用：記下 llm 模組現在的狀態，回傳一個可以把它還原的函式。"""
+    import llm
+    names = ["configure", "available", "describe", "complete"]
+    saved = {name: getattr(llm, name) for name in names}
+    return lambda: [setattr(llm, name, value) for name, value in saved.items()]
+
+
+def _two_findings(order):
+    """兩個網站各有一起外洩事件，其中 a.com 的密碼也出現在外洩密碼庫。order 決定帳號的順序。"""
+    from stages.findings import assign_keys, build_evidence
+    accounts = [{"domain": d, "sources": [], "still_using": True, "first_seen": None} for d in order]
+    breaches = [{"domain": d, "breach_name": d.upper(), "breach_date": "2019-01-01", "data_classes": ["Passwords"],
+                 "pwn_count": 1, "verified": True} for d in order]
+    pw = [{"domain": "a.com", "host": "a.com", "pwned_count": 9, "reused": False, "reuse_group": None,
+           "strength": 0, "strength_label": "很弱"}]
+    return assign_keys(build_evidence(pw, accounts, breaches, [], []))
+
+
+def t_compare_runs():
+    """和上次比：用不會變的編號比對，所以帳號順序變了也認得出是同一個問題。"""
+    from stages import history
+    from stages.findings import finalize
+    first, second = _two_findings(["a.com", "b.com"]), _two_findings(["b.com", "a.com"])
+    ids = {e["key"]: e["id"] for e in first}, {e["key"]: e["id"] for e in second}
+    stable = set(ids[0]) == set(ids[1]) and ids[0] != ids[1]  # 流水號變了，key 沒變
+    before = [{k: f[k] for k in ("key", "title", "kind", "domain", "level")} for f in finalize(first, {})]
+    # 第二次：a.com 換了密碼（P 不見了）、你把 b.com 的外洩事件標記已處理、多了一個弱密碼
+    now = [e for e in second if e["kind"] != "pwned_password"]
+    now.append({"id": "W1", "kind": "weak_password", "domain": "c.com", "default_level": "yellow",
+                "default_reason": "", "default_action": "", "key": "weak_password|c.com", "title": "c.com：密碼太弱"})
+    done = {"breach|b.com|B.COM": {"date": "2026-11-10", "title": "b.com"}}
+    diff = history.compare(before, finalize(now, {}, done))
+    got = {name: [i["key"] for i in diff[name]] for name in ("resolved", "marked", "new")}
+    ok = (stable and got == {"resolved": ["pwned_password|a.com"], "marked": ["breach|b.com|B.COM"],
+                             "new": ["weak_password|c.com"]} and diff["still"] == {"red": 1})
+    return ok, ("帳號順序變了流水號會變、比對用的編號不變；解決的、你標記的、新出現的、還沒處理的都分得出來" if ok
+                else f"結果不對：編號不變={stable}、{got}、{diff['still']}")
+
+
+def t_mark_done():
+    """標記已處理：外洩事件可以標，密碼的問題不能標（要重新檢查才算數）；標記後不列入燈號，也可以取消。"""
+    from stages import history
+    from stages.findings import finalize
+    evidence = _two_findings(["a.com", "b.com"])
+    with tempfile.TemporaryDirectory() as folder:
+        out_dir = Path(folder)
+        save_json(out_dir / "final.json", finalize(evidence, {}))
+        messages = history.mark(out_dir, ["b1", "P1", "X9"])
+        marked = history.load_done(out_dir)
+        levels = {f["id"]: f["level"] for f in finalize(evidence, {}, marked)}
+        history.mark(out_dir, ["B1"], undo=True)
+        after_undo = history.load_done(out_dir)
+    ok = (list(marked) == ["breach|a.com|A.COM"] and levels == {"P1": "red", "B1": "done", "B2": "red"}
+          and len(messages) == 3 and not after_undo)
+    return ok, ("外洩事件標記後不列入燈號；密碼的問題和不存在的編號不能標；取消標記後恢復原狀" if ok
+                else f"結果不對：{marked}、{levels}、{messages}、{after_undo}")
 
 
 def t_codex_violations():
@@ -463,15 +782,19 @@ def t_auto_pick():
 
 TESTS = [
     ("網址整理", t_domains),
-    ("白名單", t_whitelist),
+    ("白名單：每個工作各一份", t_whitelist),
+    ("主程式不載入實驗功能", t_core_only),
     ("海關：身分證字號", blocks("A123456789", "身分證字號")),
     ("海關：信用卡號", blocks("4111 1111 1111 1111", "測試用信用卡號")),
     ("海關：email", blocks("demo@example.com", " email")),
     ("海關：手機號碼", blocks("0912-345-678", "手機號碼")),
     ("海關：你的密碼", t_blocks_my_password),
+    ("海關：特殊字元的密碼", t_blocks_odd_passwords),
     ("海關：不誤擋", t_clean_passes),
+    ("個人資料放在專案外", t_secrets_outside),
     ("Gmail 寄件者整理", t_gmail_aggregate),
     ("日期格式", t_dates),
+    ("下載快取", t_download_cache),
     ("外洩前後判斷", t_breach_timing),
     ("連鎖風險", t_chain_risk),
     ("165 公告解析", t_165_parse),
@@ -479,6 +802,7 @@ TESTS = [
     ("外洩密碼：已知外洩", t_known_pwned),
     ("外洩密碼：不誤判", t_random_not_pwned),
     ("165 比對在本機", t_165_local_match),
+    ("165 店名對照表（內附）", t_shop_table),
     ("仿冒網域：抓得到、不誤報", t_lookalike_candidates),
     ("仿冒網域：燈號", t_lookalike_levels),
     ("仿冒網域：結果穩定", t_lookalike_stable),
@@ -487,18 +811,30 @@ TESTS = [
     ("保留你填的答案", t_keep_user_answers),
     ("AI 回覆檢查：寄件者、網站說明", t_ai_reply_checks),
     ("AI 文字檢查：網址", t_text_check),
-    ("工具箱：海關", t_tool_guard),
-    ("工具箱：同時呼叫", t_parallel_calls),
-    ("AI 調查：依據檢查", t_citation_check),
-    ("Gemini 工具迴圈（模擬）", t_gemini_loop),
+    ("燈號由規則決定", t_levels_fixed),
+    ("總結：數字由程式寫", t_summary_numbers),
+    ("送給 AI 的紀錄", t_sent_log),
+    ("代號：寫說明時不送網站名稱", t_masked_names),
+    ("Gmail：規則確定的不送給 AI", t_gmail_certain_not_sent),
+    ("和上次比", t_compare_runs),
+    ("和上次比：沒檢查密碼的時候", t_without_passwords),
+    ("標記已處理", t_mark_done),
+    ("密碼檔：只認匯出檔", t_export_detect),
+    ("密碼檔：等你匯出、讀完就刪", t_wait_and_destroy),
+    ("密碼檔：雲端同步資料夾", t_sync_folder),
     ("Codex 違規偵測", t_codex_violations),
     ("自動選擇 AI（模擬）", t_auto_pick),
 ]
 
 
-def run_all():
+def run_all(include_experimental=False):
+    """include_experimental：實驗功能（experimental/）的測試也一起跑。主程式只有加 --agent 時才會跑它們。"""
+    tests = list(TESTS)
+    if include_experimental:
+        from experimental.tests import TESTS as experimental_tests
+        tests += experimental_tests
     results = []
-    for name, test in TESTS:
+    for name, test in tests:
         try:
             ok, detail = test()
         except Exception as error:
@@ -509,7 +845,8 @@ def run_all():
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(errors="replace")
-    results = run_all()
+    from tests import known_answers  # 用正式的模組名稱載入，實驗功能的測試才會用到同一份
+    results = known_answers.run_all(include_experimental=True)  # 單獨執行時，實驗功能的測試也一起跑
     for name, ok, detail in results:
         print(f"[{'通過' if ok else '失敗'}] {name}：{detail}")
     sys.exit(0 if all(ok for _, ok, _ in results) else 1)

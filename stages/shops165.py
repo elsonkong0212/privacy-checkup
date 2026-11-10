@@ -16,7 +16,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from common import CACHE, USER_AGENT, parse_date, read_csv_rows
+from common import USER_AGENT, cached_json, parse_date, read_csv_rows
 
 BASE_URL = "https://165.npa.gov.tw"
 WEEKLY_TITLE = re.compile(r"(\d{3})/(\d{2})/(\d{2})\s*-\s*(?:(\d{3})/)?(\d{2})/(\d{2})\s*(?:統計)?民眾通報高風險業者")
@@ -38,14 +38,9 @@ def _request(path, body=None):
         return json.loads(response.read().decode("utf-8"))
 
 
-def _cached(name, fetch, max_age_hours=24):
-    path = CACHE / name
-    if path.exists() and time.time() - path.stat().st_mtime < max_age_hours * 3600:
-        return json.loads(path.read_text(encoding="utf-8"))
-    data = fetch()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    return data
+def shop_key(name):
+    """同一家店的不同寫法（CACO、Caco、「蝦皮 購物」）要算成同一個：去掉空白、不分大小寫。"""
+    return re.sub(r"\s+", "", name).casefold()
 
 
 def roc_period(title):
@@ -75,37 +70,36 @@ def parse_names(content):
 
 
 def fetch_history():
-    records = _cached("165_history.json", lambda: _request("/api/query/findRiskMarket", {"keyWord": ""}))
+    records, _ = cached_json("165_history.json", fetch=lambda: _request("/api/query/findRiskMarket", {"keyWord": ""}))
     return [{"shop_name": r["storeName"].strip(), "start": r["statisticsStartDate"][:10],
              "end": r["statisticsEndDate"][:10]} for r in records if r.get("storeName")]
 
 
+def _fetch_article(article_id):
+    time.sleep(0.5)  # 對政府網站客氣一點
+    return _request(f"/api/article/detail/9/{article_id}")
+
+
 def fetch_weekly(after):
     """抓 after（YYYY-MM-DD）之後的每週公告。公告內容不會變，每篇只下載一次。"""
-    articles = _cached("165_articles.json", lambda: _request("/api/article/list/9"))
+    articles, _ = cached_json("165_articles.json", fetch=lambda: _request("/api/article/list/9"))
     entries, unreadable = [], []
     for article in articles:
         period = roc_period(article.get("title"))
         if not period or period[1] <= after:
             continue
-        path = CACHE / "165_weekly" / f"{article['id']}.json"
-        if path.exists():
-            detail = json.loads(path.read_text(encoding="utf-8"))
-        else:
-            time.sleep(0.5)  # 對政府網站客氣一點
-            detail = _request(f"/api/article/detail/9/{article['id']}")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(detail, ensure_ascii=False), encoding="utf-8")
+        try:
+            detail, _ = cached_json(f"165_weekly/{article['id']}.json", max_age_hours=None,
+                                    fetch=lambda: _fetch_article(article["id"]))
+        except (OSError, ValueError):  # 這一篇下載不到：先略過，其他已經下載過的照用
+            unreadable.append(article.get("title"))
+            continue
         names = parse_names(detail.get("content"))
         if not names:
             unreadable.append(article.get("title"))
         entries += [{"shop_name": n, "start": period[0], "end": period[1]} for n in names]
     weeks = len({(e["start"], e["end"]) for e in entries})
     return entries, weeks, unreadable
-
-
-def _key(name):
-    return re.sub(r"\s+", "", name).casefold()
 
 
 def load(manual_path=None, fetch=True):
@@ -123,13 +117,13 @@ def load(manual_path=None, fetch=True):
             weekly, meta["weekly_weeks"], unreadable = fetch_weekly(after=meta["history"][1] if meta["history"] else "")
             entries += weekly
             if unreadable:
-                print(f"  [注意] 有 {len(unreadable)} 篇公告的格式看不懂，已略過：{unreadable[:3]}")
+                print(f"  [注意] 有 {len(unreadable)} 篇公告下載不到或格式看不懂，已略過：{unreadable[:3]}")
         except Exception as error:  # 網站改版、連不上
             meta["warning"] = f"自動抓取 165 名單失敗（{error}），只用手動清單"
             print(f"  [注意] {meta['warning']}")
     shops = {}
     for e in entries:
-        shop = shops.setdefault(_key(e["shop_name"]), {"shop_name": e["shop_name"], "times": 0, "last_listed": None})
+        shop = shops.setdefault(shop_key(e["shop_name"]), {"shop_name": e["shop_name"], "times": 0, "last_listed": None})
         shop["times"] += 1
         if not shop["last_listed"] or e["end"] > shop["last_listed"]:
             shop["last_listed"], shop["shop_name"] = e["end"], e["shop_name"]  # 用最近一次的寫法
@@ -137,10 +131,10 @@ def load(manual_path=None, fetch=True):
     if manual_path and Path(manual_path).exists():
         for row in read_csv_rows(manual_path):
             name = (row.get("shop_name") or "").strip()
-            if not name or _key(name) in shops:
+            if not name or shop_key(name) in shops:
                 continue
             times = (row.get("times") or "").strip()
-            shops[_key(name)] = {"shop_name": name, "times": int(times) if times.isdigit() else 0,
+            shops[shop_key(name)] = {"shop_name": name, "times": int(times) if times.isdigit() else 0,
                                  "last_listed": parse_date(row.get("last_listed"))}
             meta["manual"] += 1
 

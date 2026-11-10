@@ -2,7 +2,7 @@
   "mcpServers": {
     "privacy-checkup": {
       "command": "python",
-      "args": ["mcp_server.py"]
+      "args": ["experimental/mcp_server.py"]
     }
   }
 }

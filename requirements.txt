@@ -4,5 +4,5 @@
 google-api-python-client>=2.0
 google-auth-oauthlib>=1.0
 
-# AI 調查員（--agent，實驗功能）和 MCP 伺服器才需要；需要 Python 3.10 以上
+# 實驗功能（experimental/：AI 調查員 --agent、MCP 伺服器）才需要；需要 Python 3.10 以上
 mcp>=1.0

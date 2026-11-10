@@ -3,7 +3,7 @@
 - 只申請 gmail.metadata 權限：只能讀信件標頭（寄件者、主旨、日期），
   Google 不會讓這個程式讀到信件內容和附件
 - 全部在你的電腦上處理；主旨只拿來判斷是不是註冊信、訂單信，不會寫進檔案，也不會交給 AI
-- 輸出 secrets/gmail_candidates.csv。AI 和規則都同意的，會自動在 still_using 填 y（還在用）或 n（不用了）；
+- 輸出 gmail_candidates.csv，放在個人資料資料夾（在專案外面，執行時會印出位置）。AI 和規則都同意的，會自動在 still_using 填 y（還在用）或 n（不用了）；
   意見不同或沒把握的標 ★，排在最前面讓你確認（見 stages/gmail_triage.py）
 - 掃完會問你要不要撤銷這次的授權（建議撤銷，用完就收回權限）
 
@@ -24,10 +24,9 @@ from email.header import decode_header, make_header
 from email.utils import parseaddr
 
 import llm
-from common import BASE, normalize_domain, read_csv_rows
+from common import SECRETS, normalize_domain, prepare_secrets, read_csv_rows
 from stages import gmail_triage
 
-SECRETS = BASE / "secrets"
 CREDENTIALS = SECRETS / "gmail_credentials.json"
 SCOPES = ["https://www.googleapis.com/auth/gmail.metadata"]
 BATCH_SIZE = 50   # Google 建議一批不要超過 50 個請求
@@ -60,7 +59,7 @@ SETUP_HELP = f"""\
 找不到 Google 憑證檔：{CREDENTIALS}
 
 第一次使用要先在 Google Cloud 設定（約 15～20 分鐘，只要做一次），步驟見 README.md 的「Gmail 寄件者掃描」。
-完成後把下載的 JSON 檔改名成 gmail_credentials.json，放進 secrets/ 資料夾。"""
+完成後把下載的 JSON 檔改名成 gmail_credentials.json，放進個人資料資料夾：{SECRETS}"""
 
 
 def profile_paths(profile):
@@ -281,9 +280,11 @@ def main():
     parser.add_argument("--model", help="指定 AI 模型")
     parser.add_argument("--retriage", action="store_true", help="不重新掃描 Gmail，用現有的候選清單重新判斷")
     args = parser.parse_args()
+    prepare_secrets()  # 個人資料放在專案外面；舊版留在專案裡 secrets/ 的檔案會搬過去
     token_path, output = profile_paths(args.profile)
 
     print("=== Gmail 寄件者掃描（只讀信件標頭，不讀內容） ===")
+    print(f"個人資料資料夾：{SECRETS}")
     if args.profile:
         print(f"帳號代號：{args.profile}（結果存在 {output.name}）")
     creds = None
@@ -296,7 +297,6 @@ def main():
 
     stats, without_ai, used_ai = gmail_triage.run(rows, args.llm, args.model)
     rows.sort(key=sort_key)
-    SECRETS.mkdir(exist_ok=True)
     with open(output, "w", newline="", encoding="utf-8-sig") as f:  # 加 BOM，用 Excel 打開中文才不會亂碼
         writer = csv.DictWriter(f, fieldnames=COLUMNS, extrasaction="ignore")
         writer.writeheader()

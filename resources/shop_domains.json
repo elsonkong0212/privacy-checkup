@@ -1,0 +1,1158 @@
+{
+ "note": "165 高風險賣場的店名 → 官方網域。店名是 165 全民防騙網公開的資料；網域由 AI 翻譯，2026-11-10 檢查過一輪（網域要連得上，對不起來的拿掉）。domains 是空的 = 檢查過，沒有能確定的官方網域。仍然可能有錯，所以報告裡用到這張表的項目都會標「請自己確認」，最多只列 🟡。",
+ "shops": {
+  "55688台灣大車隊": {
+   "shop_name": "55688台灣大車隊",
+   "domains": [
+    "taiwantaxi.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "7-11賣貨便": {
+   "shop_name": "7-11賣貨便",
+   "domains": [
+    "7-11.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "711賣貨便": {
+   "shop_name": "711賣貨便",
+   "domains": [
+    "7-11.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "andenhud": {
+   "shop_name": "ANDEN HUD",
+   "domains": [
+    "andenhud.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "ann's": {
+   "shop_name": "ANN'S",
+   "domains": [
+    "anns.tw"
+   ],
+   "confidence": "high"
+  },
+  "aromase": {
+   "shop_name": "AROMASE",
+   "domains": [
+    "aromase.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "ann's女鞋": {
+   "shop_name": "Ann'S女鞋",
+   "domains": [
+    "anns.tw"
+   ],
+   "confidence": "high"
+  },
+  "bhk's無暇机力": {
+   "shop_name": "BHK'S無暇机力",
+   "domains": [
+    "bhks.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "bhk's": {
+   "shop_name": "BHK's",
+   "domains": [
+    "bhks.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "bhk's無瑕机力": {
+   "shop_name": "BHK's無瑕机力",
+   "domains": [
+    "bhks.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "booking.com": {
+   "shop_name": "Booking.com",
+   "domains": [
+    "booking.com"
+   ],
+   "confidence": "high"
+  },
+  "booking.com訂房網": {
+   "shop_name": "Booking.com訂房網",
+   "domains": [
+    "booking.com"
+   ],
+   "confidence": "high"
+  },
+  "booking訂房網": {
+   "shop_name": "Booking訂房網",
+   "domains": [
+    "booking.com"
+   ],
+   "confidence": "high"
+  },
+  "caco": {
+   "shop_name": "CACO",
+   "domains": [
+    "caco.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "carharttwiptaiwan": {
+   "shop_name": "Carhartt WIP Taiwan",
+   "domains": [
+    "carhartt-wip.com",
+    "carhartt-wip.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "d+af": {
+   "shop_name": "D+AF",
+   "domains": [],
+   "confidence": null
+  },
+  "develcase": {
+   "shop_name": "DEVELCASE",
+   "domains": [
+    "devilcase.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "dhc": {
+   "shop_name": "DHC",
+   "domains": [
+    "dhc.co.jp",
+    "dhc.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "devilcase": {
+   "shop_name": "Devilcase",
+   "domains": [
+    "devilcase.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "eclife良興": {
+   "shop_name": "ECLIFE良興",
+   "domains": [
+    "eclife.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "eclife良興購物": {
+   "shop_name": "EcLife良興購物",
+   "domains": [
+    "eclife.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "fandorashop": {
+   "shop_name": "Fandora shop",
+   "domains": [],
+   "confidence": null
+  },
+  "futurelab.未來實驗室": {
+   "shop_name": "FutureLab.未來實驗室",
+   "domains": [
+    "futurelab.tw"
+   ],
+   "confidence": "medium"
+  },
+  "garageplay車庫娛樂": {
+   "shop_name": "GaragePlay車庫娛樂",
+   "domains": [
+    "garageplay.tw"
+   ],
+   "confidence": "high"
+  },
+  "hami書城": {
+   "shop_name": "Hami書城",
+   "domains": [
+    "hamibook.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "ikea": {
+   "shop_name": "IKEA",
+   "domains": [
+    "ikea.com",
+    "ikea.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "line禮物": {
+   "shop_name": "LINE禮物",
+   "domains": [
+    "line.me"
+   ],
+   "confidence": "medium"
+  },
+  "line購物商城": {
+   "shop_name": "LINE購物商城",
+   "domains": [
+    "line.me"
+   ],
+   "confidence": "high"
+  },
+  "ludeya露緹雅": {
+   "shop_name": "LUDEYA 露緹雅",
+   "domains": [
+    "ludeya.com"
+   ],
+   "confidence": "medium"
+  },
+  "levis": {
+   "shop_name": "Levis",
+   "domains": [
+    "levi.com"
+   ],
+   "confidence": "medium"
+  },
+  "mo-bo": {
+   "shop_name": "MO-BO",
+   "domains": [
+    "mo-bo.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "mobo": {
+   "shop_name": "MOBO",
+   "domains": [
+    "mo-bo.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "ob嚴選": {
+   "shop_name": "OB嚴選",
+   "domains": [
+    "obdesign.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "oneboy": {
+   "shop_name": "ONE BOY",
+   "domains": [
+    "oneboy.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "oneboy冰鋒衣": {
+   "shop_name": "ONE BOY 冰鋒衣",
+   "domains": [
+    "oneboy.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "pchome": {
+   "shop_name": "PChome",
+   "domains": [
+    "pchome.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "pchome商店街": {
+   "shop_name": "Pchome商店街",
+   "domains": [
+    "pcstore.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "peachjohn": {
+   "shop_name": "Peach John",
+   "domains": [
+    "peachjohn.co.jp",
+    "peachjohn.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "qmomo": {
+   "shop_name": "QMOMO",
+   "domains": [
+    "qmomo.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "queenshop": {
+   "shop_name": "Queenshop",
+   "domains": [
+    "queenshop.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "s'aime": {
+   "shop_name": "S'AIME",
+   "domains": [
+    "saime.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "tklab": {
+   "shop_name": "TKLAB",
+   "domains": [
+    "tklab.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "toyselect": {
+   "shop_name": "TOYSELECT",
+   "domains": [],
+   "confidence": null
+  },
+  "toyselect拓伊": {
+   "shop_name": "TOYSELECT拓伊",
+   "domains": [],
+   "confidence": null
+  },
+  "uniqman優仕曼": {
+   "shop_name": "UNIQMAN優仕曼",
+   "domains": [
+    "uniqman.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "vitabox": {
+   "shop_name": "VITABOX",
+   "domains": [
+    "vitabox.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "vitabox??維他盒子": {
+   "shop_name": "VITABOX??維他盒子",
+   "domains": [
+    "vitabox.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "wechat": {
+   "shop_name": "WeChat",
+   "domains": [
+    "wechat.com"
+   ],
+   "confidence": "high"
+  },
+  "worldgym": {
+   "shop_name": "World Gym",
+   "domains": [
+    "worldgymtaiwan.com"
+   ],
+   "confidence": "high"
+  },
+  "xround": {
+   "shop_name": "XROUND",
+   "domains": [
+    "xround.co"
+   ],
+   "confidence": "medium"
+  },
+  "yahoo奇摩拍賣": {
+   "shop_name": "YAHOO奇摩拍賣",
+   "domains": [
+    "yahoo.com"
+   ],
+   "confidence": "high"
+  },
+  "yotta友讀": {
+   "shop_name": "YOTTA友讀",
+   "domains": [
+    "yottau.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "youbike微笑單車": {
+   "shop_name": "YouBike微笑單車",
+   "domains": [
+    "youbike.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "apple": {
+   "shop_name": "apple",
+   "domains": [
+    "apple.com"
+   ],
+   "confidence": "high"
+  },
+  "carhartt": {
+   "shop_name": "carhartt",
+   "domains": [
+    "carhartt.com"
+   ],
+   "confidence": "high"
+  },
+  "gomaji": {
+   "shop_name": "gomaji",
+   "domains": [
+    "gomaji.com"
+   ],
+   "confidence": "high"
+  },
+  "i3fresh愛上新鮮": {
+   "shop_name": "i3Fresh愛上新鮮",
+   "domains": [
+    "i3fresh.tw"
+   ],
+   "confidence": "high"
+  },
+  "iqueen愛女人購物網": {
+   "shop_name": "iQueen愛女人購物網",
+   "domains": [
+    "iqueen.tw"
+   ],
+   "confidence": "medium"
+  },
+  "in89影城": {
+   "shop_name": "in89影城",
+   "domains": [
+    "in89.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "in89豪華影城": {
+   "shop_name": "in89豪華影城",
+   "domains": [
+    "in89.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "innisfree": {
+   "shop_name": "innisfree",
+   "domains": [
+    "innisfree.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "世界展望會": {
+   "shop_name": "世界展望會",
+   "domains": [
+    "worldvision.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "中華電信": {
+   "shop_name": "中華電信",
+   "domains": [
+    "cht.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "中華電信hamivideo": {
+   "shop_name": "中華電信 Hami Video",
+   "domains": [
+    "hinet.net"
+   ],
+   "confidence": "high"
+  },
+  "中華電信hami書城": {
+   "shop_name": "中華電信 Hami書城",
+   "domains": [
+    "hamibook.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "九乘九文具": {
+   "shop_name": "九乘九文具",
+   "domains": [
+    "9x9.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "亞果元素": {
+   "shop_name": "亞果元素",
+   "domains": [
+    "adamelements.com"
+   ],
+   "confidence": "high"
+  },
+  "亞瑟士": {
+   "shop_name": "亞瑟士",
+   "domains": [
+    "asics.com",
+    "asics.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "人安基金會": {
+   "shop_name": "人安基金會",
+   "domains": [
+    "homeless.org.tw"
+   ],
+   "confidence": "medium"
+  },
+  "伊甸基金會": {
+   "shop_name": "伊甸基金會",
+   "domains": [
+    "eden.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "健身工廠": {
+   "shop_name": "健身工廠",
+   "domains": [
+    "fitnessfactory.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "傑昇通信": {
+   "shop_name": "傑昇通信",
+   "domains": [
+    "jyes.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "優仕曼": {
+   "shop_name": "優仕曼",
+   "domains": [
+    "uniqman.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "全國加油站": {
+   "shop_name": "全國加油站",
+   "domains": [],
+   "confidence": null
+  },
+  "全統運動報名網": {
+   "shop_name": "全統運動報名網",
+   "domains": [
+    "bao-ming.com"
+   ],
+   "confidence": "medium"
+  },
+  "全聯線上購": {
+   "shop_name": "全聯線上購",
+   "domains": [
+    "pxmart.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "創世基金會": {
+   "shop_name": "創世基金會",
+   "domains": [
+    "genesis.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "博客來": {
+   "shop_name": "博客來",
+   "domains": [
+    "books.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "台北花園大酒店": {
+   "shop_name": "台北花園大酒店",
+   "domains": [
+    "taipeigarden.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "台灣世界展望會": {
+   "shop_name": "台灣世界展望會",
+   "domains": [
+    "worldvision.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "台灣中油股份有限公司": {
+   "shop_name": "台灣中油股份有限公司",
+   "domains": [
+    "cpc.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "台灣之心愛護動物協會": {
+   "shop_name": "台灣之心愛護動物協會",
+   "domains": [
+    "hotac.org.tw"
+   ],
+   "confidence": "medium"
+  },
+  "台灣之星": {
+   "shop_name": "台灣之星",
+   "domains": [
+    "tstartel.com"
+   ],
+   "confidence": "high"
+  },
+  "台灣大車隊": {
+   "shop_name": "台灣大車隊",
+   "domains": [
+    "taiwantaxi.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "台灣好農": {
+   "shop_name": "台灣好農",
+   "domains": [
+    "wonderfulfood.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "台灣癌症基金會": {
+   "shop_name": "台灣癌症基金會",
+   "domains": [
+    "canceraway.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "和泰yoxi": {
+   "shop_name": "和泰YOXI",
+   "domains": [
+    "yoxi.app"
+   ],
+   "confidence": "medium"
+  },
+  "喜樂時代影城": {
+   "shop_name": "喜樂時代影城",
+   "domains": [
+    "centuryasia.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "城市商旅": {
+   "shop_name": "城市商旅",
+   "domains": [
+    "citysuites.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "基督教芥菜種會": {
+   "shop_name": "基督教芥菜種會",
+   "domains": [
+    "mustard.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "天和鮮物": {
+   "shop_name": "天和鮮物",
+   "domains": [
+    "thofood.com"
+   ],
+   "confidence": "medium"
+  },
+  "天成飯店": {
+   "shop_name": "天成飯店",
+   "domains": [
+    "cosmos-hotel.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "天藍小舖": {
+   "shop_name": "天藍小舖",
+   "domains": [],
+   "confidence": null
+  },
+  "奇摩拍賣": {
+   "shop_name": "奇摩拍賣",
+   "domains": [
+    "yahoo.com"
+   ],
+   "confidence": "high"
+  },
+  "威秀影城": {
+   "shop_name": "威秀影城",
+   "domains": [
+    "vscinemas.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "婕洛妮絲": {
+   "shop_name": "婕洛妮絲",
+   "domains": [
+    "jealousness.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "安得烈食物銀行": {
+   "shop_name": "安得烈食物銀行",
+   "domains": [],
+   "confidence": null
+  },
+  "宜得利": {
+   "shop_name": "宜得利",
+   "domains": [
+    "nitori-net.tw"
+   ],
+   "confidence": "high"
+  },
+  "寶雅": {
+   "shop_name": "寶雅",
+   "domains": [
+    "poya.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "小三美日": {
+   "shop_name": "小三美日",
+   "domains": [
+    "s3.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "尖端書局": {
+   "shop_name": "尖端書局",
+   "domains": [
+    "spp.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "尖端網路書店": {
+   "shop_name": "尖端網路書店",
+   "domains": [
+    "spp.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "巧連智": {
+   "shop_name": "巧連智",
+   "domains": [
+    "benesse.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "康軒文教": {
+   "shop_name": "康軒文教",
+   "domains": [
+    "knsh.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "微熱山丘": {
+   "shop_name": "微熱山丘",
+   "domains": [
+    "sunnyhills.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "心路基金會": {
+   "shop_name": "心路基金會",
+   "domains": [
+    "syinlu.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "恆隆行": {
+   "shop_name": "恆隆行",
+   "domains": [
+    "hengstyle.com"
+   ],
+   "confidence": "high"
+  },
+  "愛上新鮮": {
+   "shop_name": "愛上新鮮",
+   "domains": [
+    "i3fresh.tw"
+   ],
+   "confidence": "high"
+  },
+  "愛迪達": {
+   "shop_name": "愛迪達",
+   "domains": [
+    "adidas.com",
+    "adidas.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "拓元售票": {
+   "shop_name": "拓元售票",
+   "domains": [
+    "tixcraft.com"
+   ],
+   "confidence": "high"
+  },
+  "摩斯漢堡": {
+   "shop_name": "摩斯漢堡",
+   "domains": [
+    "mos.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "新光影城": {
+   "shop_name": "新光影城",
+   "domains": [
+    "skcinemas.com"
+   ],
+   "confidence": "high"
+  },
+  "旋轉拍賣": {
+   "shop_name": "旋轉拍賣",
+   "domains": [
+    "carousell.com"
+   ],
+   "confidence": "high"
+  },
+  "旭集": {
+   "shop_name": "旭集",
+   "domains": [
+    "eatogether.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "木匠兄妹": {
+   "shop_name": "木匠兄妹",
+   "domains": [
+    "carpenter.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "未來實驗室": {
+   "shop_name": "未來實驗室",
+   "domains": [
+    "futurelab.tw"
+   ],
+   "confidence": "high"
+  },
+  "杜蕾斯": {
+   "shop_name": "杜蕾斯",
+   "domains": [
+    "durex.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "東南旅遊": {
+   "shop_name": "東南旅遊",
+   "domains": [
+    "settour.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "東森購物": {
+   "shop_name": "東森購物",
+   "domains": [
+    "etmall.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "松果購物": {
+   "shop_name": "松果購物",
+   "domains": [
+    "pcone.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "樂天市場購物網": {
+   "shop_name": "樂天市場購物網",
+   "domains": [
+    "rakuten.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "樂聲影城": {
+   "shop_name": "樂聲影城",
+   "domains": [
+    "luxcinema.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "比比昂bibian": {
+   "shop_name": "比比昂bibian",
+   "domains": [
+    "bibian.co.jp"
+   ],
+   "confidence": "high"
+  },
+  "漸凍人協會": {
+   "shop_name": "漸凍人協會",
+   "domains": [
+    "mnda.org.tw"
+   ],
+   "confidence": "medium"
+  },
+  "現代婦女基金會": {
+   "shop_name": "現代婦女基金會",
+   "domains": [
+    "38.org.tw"
+   ],
+   "confidence": "medium"
+  },
+  "生活工場": {
+   "shop_name": "生活工場",
+   "domains": [],
+   "confidence": null
+  },
+  "生活市集": {
+   "shop_name": "生活市集",
+   "domains": [
+    "buy123.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "神腦國際": {
+   "shop_name": "神腦國際",
+   "domains": [
+    "senao.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "秀泰影城": {
+   "shop_name": "秀泰影城",
+   "domains": [
+    "showtimes.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "科技紫微網": {
+   "shop_name": "科技紫微網",
+   "domains": [
+    "click108.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "統一生機": {
+   "shop_name": "統一生機",
+   "domains": [
+    "organicshops.cc"
+   ],
+   "confidence": "medium"
+  },
+  "統聯客運": {
+   "shop_name": "統聯客運",
+   "domains": [
+    "ubus.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "綠藤生機": {
+   "shop_name": "綠藤生機",
+   "domains": [
+    "greenvines.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "維他盒子": {
+   "shop_name": "維他盒子",
+   "domains": [
+    "vitabox.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "聯合勸募協會": {
+   "shop_name": "聯合勸募協會",
+   "domains": [
+    "unitedway.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "臉書marketplace": {
+   "shop_name": "臉書marketplace",
+   "domains": [
+    "facebook.com"
+   ],
+   "confidence": "high"
+  },
+  "至善基金會": {
+   "shop_name": "至善基金會",
+   "domains": [
+    "zhi-shan.org"
+   ],
+   "confidence": "medium"
+  },
+  "良興購物網": {
+   "shop_name": "良興購物網",
+   "domains": [
+    "eclife.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "良興電子": {
+   "shop_name": "良興電子",
+   "domains": [
+    "eclife.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "華山基金會": {
+   "shop_name": "華山基金會",
+   "domains": [],
+   "confidence": null
+  },
+  "蝦皮拍賣": {
+   "shop_name": "蝦皮拍賣",
+   "domains": [
+    "shopee.tw"
+   ],
+   "confidence": "high"
+  },
+  "蝦皮購物": {
+   "shop_name": "蝦皮購物",
+   "domains": [
+    "shopee.tw"
+   ],
+   "confidence": "high"
+  },
+  "誠品": {
+   "shop_name": "誠品",
+   "domains": [
+    "eslite.com"
+   ],
+   "confidence": "high"
+  },
+  "誠品書局": {
+   "shop_name": "誠品書局",
+   "domains": [
+    "eslite.com"
+   ],
+   "confidence": "high"
+  },
+  "財團法人癌症希望基金會": {
+   "shop_name": "財團法人癌症希望基金會",
+   "domains": [
+    "ecancer.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "資生堂": {
+   "shop_name": "資生堂",
+   "domains": [
+    "shiseido.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "車庫娛樂": {
+   "shop_name": "車庫娛樂",
+   "domains": [
+    "garageplay.tw"
+   ],
+   "confidence": "high"
+  },
+  "車麗屋": {
+   "shop_name": "車麗屋",
+   "domains": [],
+   "confidence": null
+  },
+  "迪卡儂": {
+   "shop_name": "迪卡儂",
+   "domains": [
+    "decathlon.tw"
+   ],
+   "confidence": "high"
+  },
+  "遠傳friday購物": {
+   "shop_name": "遠傳Friday購物",
+   "domains": [
+    "friday.tw"
+   ],
+   "confidence": "high"
+  },
+  "遠傳friday購物網": {
+   "shop_name": "遠傳Friday購物網",
+   "domains": [
+    "friday.tw"
+   ],
+   "confidence": "high"
+  },
+  "遠傳friday購物平台": {
+   "shop_name": "遠傳friDay購物平台",
+   "domains": [
+    "friday.tw"
+   ],
+   "confidence": "high"
+  },
+  "里仁食品": {
+   "shop_name": "里仁食品",
+   "domains": [
+    "leezen.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "金石堂": {
+   "shop_name": "金石堂",
+   "domains": [
+    "kingstone.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "鍋寶": {
+   "shop_name": "鍋寶",
+   "domains": [
+    "cookpot.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "門諾醫院": {
+   "shop_name": "門諾醫院",
+   "domains": [
+    "mch.org.tw"
+   ],
+   "confidence": "high"
+  },
+  "阿原yuan": {
+   "shop_name": "阿原YUAN",
+   "domains": [],
+   "confidence": null
+  },
+  "陶板屋": {
+   "shop_name": "陶板屋",
+   "domains": [
+    "tokiya.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "雄獅旅行社": {
+   "shop_name": "雄獅旅行社",
+   "domains": [
+    "liontravel.com"
+   ],
+   "confidence": "high"
+  },
+  "雄獅旅遊": {
+   "shop_name": "雄獅旅遊",
+   "domains": [
+    "liontravel.com"
+   ],
+   "confidence": "high"
+  },
+  "雅虎奇摩": {
+   "shop_name": "雅虎奇摩",
+   "domains": [
+    "yahoo.com"
+   ],
+   "confidence": "high"
+  },
+  "露天拍賣": {
+   "shop_name": "露天拍賣",
+   "domains": [
+    "ruten.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "順發3c": {
+   "shop_name": "順發3C",
+   "domains": [
+    "sunfar.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "饗賓集團": {
+   "shop_name": "饗賓集團",
+   "domains": [
+    "eatogether.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "饗食天堂": {
+   "shop_name": "饗食天堂",
+   "domains": [
+    "eatogether.com.tw"
+   ],
+   "confidence": "high"
+  },
+  "饗饗": {
+   "shop_name": "饗饗",
+   "domains": [
+    "eatogether.com.tw"
+   ],
+   "confidence": "medium"
+  },
+  "香港商世界健身事業有限公司台灣分公司": {
+   "shop_name": "香港商世界健身事業有限公司台灣分公司",
+   "domains": [
+    "worldgymtaiwan.com"
+   ],
+   "confidence": "high"
+  }
+ }
+}

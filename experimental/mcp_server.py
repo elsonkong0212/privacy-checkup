@@ -6,8 +6,8 @@
    專案裡的 .mcp.json、.vscode/mcp.json、.cursor/mcp.json 會讓這些工具自動找到它。
    先跑完 python main.py，再問 AI「我的健檢結果哪些要先處理？」
 
-  python mcp_server.py           # 讀 data/real（還沒跑過正式健檢就讀 data/demo）
-  python mcp_server.py --demo    # 讀 data/demo
+  python experimental/mcp_server.py           # 讀 data/real（還沒跑過正式健檢就讀 data/demo）
+  python experimental/mcp_server.py --demo    # 讀 data/demo
 """
 import argparse
 import sys
@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Annotated
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # 從別的資料夾啟動也找得到專案的模組
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 從別的資料夾啟動也找得到專案的模組
 
 from pydantic import Field
 
@@ -25,8 +25,8 @@ except ImportError:
     from mcp.server.fastmcp import FastMCP as MCPServer  # mcp 1.x
 from mcp.types import ToolAnnotations
 
-import agent_tools
 from common import DATA
+from experimental import agent_tools
 
 SPECS = agent_tools.SPECS
 

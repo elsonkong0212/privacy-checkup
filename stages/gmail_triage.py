@@ -5,6 +5,8 @@
   兩年以上沒收到任何信、三年以上沒有登入或訂單信 → 可能不用了
 - AI 看寄件者名稱和網站類型：例如論壇、遊戲網站平常不寄信，沒有來信不代表沒在用
 - 自動填 y 比較寬鬆（填錯只是少一個刪除建議），自動填 n 比較嚴格（填錯會建議你刪掉還在用的帳號）
+- 規則已經有明確證據「還在用」的網站（最近一年有登入、安全通知或訂單信）直接填 y，不送給 AI：
+  這些是你最常用的帳號，AI 的意見也改變不了結果，就沒有必要讓它看到
 - 你自己填過的答案永遠優先，重新掃描也不會被蓋掉
 """
 import datetime
@@ -72,7 +74,9 @@ def run(rows, backend="auto", model=None, today=None):
     from stages import ai_steps  # 放在這裡，gmail_scan 只有用到這一步時才載入
 
     today = today or datetime.date.today()
-    todo = [r for r in rows if not r.get("decided_by_you")]
+    # 要問 AI 的：你還沒回答、而且規則還不能確定「還在用」的網站
+    todo = [r for r in rows if not r.get("decided_by_you") and rule_in_use(r, today)[0] != "y"]
+    certain = sum(1 for r in rows if not r.get("decided_by_you")) - len(todo)
     ai_results = {}
     if backend != "none" and todo:
         llm.configure(backend, model)
@@ -80,6 +84,8 @@ def run(rows, backend="auto", model=None, today=None):
             guard.start_run("Gmail 候選清單")
             print(f"  請 AI 判斷 {len(todo)} 個網站（{llm.describe()}；"
                   "只送網域、寄件者名稱、信件數和日期，不送主旨和內容）…")
+            if certain:
+                print(f"  另外 {certain} 個最近一年有登入、安全通知或訂單信，規則直接判斷還在用，不送給 AI")
             ai_results = ai_steps.classify_senders(todo, today)
     stats, without_ai = Counter(), 0
     for row in rows:
